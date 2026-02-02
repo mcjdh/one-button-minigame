@@ -17,17 +17,20 @@ export const state = {
 
     // Player state
     player: {
-        stance: 'idle', // 'idle', 'aggressive', 'defensive', 'stumble', 'charge'
+        stance: 'idle', // 'idle', 'aggressive', 'defensive', 'stumble', 'charge', 'triple', 'tapthenhold'
         lives: 3,
         score: 0,
         combo: 0,
         hasSeenArmored: false,
+        hasSeenGiant: false,
+        hasSeenMage: false,
         feverMode: false
     },
 
     // Current enemy
     enemy: null,
     enemyQueue: [],
+    spawnHistory: [], // Track last 3 enemy types for variety
 
     // Input state
     inputBuffer: [],

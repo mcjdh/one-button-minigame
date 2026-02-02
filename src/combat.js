@@ -1,7 +1,12 @@
 // ============================================
 // COMBAT SYSTEM
 // ============================================
-import { ENEMY_TYPES, KILL_TEXTS, CRIT_TEXTS, OVERKILL_TEXTS, DAMAGE_TEXTS, ARMORED_INTRO_SCORE, ARMORED_GUARANTEE_BAR } from './constants.js';
+import {
+    ENEMY_TYPES, KILL_TEXTS, CRIT_TEXTS, OVERKILL_TEXTS, DAMAGE_TEXTS,
+    ARMORED_INTRO_SCORE, ARMORED_GUARANTEE_BAR,
+    GIANT_INTRO_SCORE, GIANT_INTRO_BAR,
+    MAGE_INTRO_SCORE, MAGE_INTRO_BAR
+} from './constants.js';
 import { state, dom } from './state.js';
 import { playSFX } from './audio.js';
 import { showText, showBigPrompt, spawnParticles } from './render.js';
@@ -12,17 +17,43 @@ import { showText, showBigPrompt, spawnParticles } from './render.js';
 export function spawnEnemy() {
     const { canvas } = dom;
 
-    // Introduce armored earlier so players experience charge mechanic
+    // Build available types based on progression
     let types = ['swordsman', 'archer'];
-    if (state.player.score >= ARMORED_INTRO_SCORE) {
+    if (state.player.score >= ARMORED_INTRO_SCORE || state.currentBar >= ARMORED_GUARANTEE_BAR) {
         types.push('armored');
     }
+    if (state.player.score >= GIANT_INTRO_SCORE || state.currentBar >= GIANT_INTRO_BAR) {
+        types.push('giant');
+    }
+    if (state.player.score >= MAGE_INTRO_SCORE || state.currentBar >= MAGE_INTRO_BAR) {
+        types.push('mage');
+    }
+
     // Guarantee first armored around bar 8 to teach the mechanic
     if (state.currentBar >= ARMORED_GUARANTEE_BAR && state.currentBar < ARMORED_GUARANTEE_BAR + 4 && !state.player.hasSeenArmored) {
         types = ['armored'];
         state.player.hasSeenArmored = true;
     }
-    const type = types[Math.floor(Math.random() * types.length)];
+    // Guarantee first giant around bar 16
+    if (state.currentBar >= GIANT_INTRO_BAR && state.currentBar < GIANT_INTRO_BAR + 4 && !state.player.hasSeenGiant) {
+        types = ['giant'];
+        state.player.hasSeenGiant = true;
+    }
+    // Guarantee first mage around bar 12
+    if (state.currentBar >= MAGE_INTRO_BAR && state.currentBar < MAGE_INTRO_BAR + 4 && !state.player.hasSeenMage) {
+        types = ['mage'];
+        state.player.hasSeenMage = true;
+    }
+
+    // Apply spawn variety - prevent 3+ of same type in a row
+    const type = selectWithVariety(types);
+
+    // Track spawn history (keep last 3)
+    state.spawnHistory.push(type);
+    if (state.spawnHistory.length > 3) {
+        state.spawnHistory.shift();
+    }
+
     state.enemy = {
         type: type,
         ...ENEMY_TYPES[type],
@@ -32,6 +63,41 @@ export function spawnEnemy() {
         alive: true,
         staggered: false
     };
+}
+
+// Weighted selection to prevent repetitive spawns
+function selectWithVariety(types) {
+    const history = state.spawnHistory;
+
+    // If only one type available, use it
+    if (types.length === 1) return types[0];
+
+    // Check if last two spawns were the same type
+    const lastTwo = history.slice(-2);
+    const repeatedType = lastTwo.length === 2 && lastTwo[0] === lastTwo[1] ? lastTwo[0] : null;
+
+    // If we have a repeated type, exclude it from selection
+    if (repeatedType && types.includes(repeatedType)) {
+        const filtered = types.filter(t => t !== repeatedType);
+        if (filtered.length > 0) {
+            return filtered[Math.floor(Math.random() * filtered.length)];
+        }
+    }
+
+    // Otherwise, weight against the last spawned type (50% less likely)
+    const lastType = history[history.length - 1];
+    if (lastType && types.includes(lastType)) {
+        // Build weighted pool: each type gets 2 entries, last type gets 1
+        const pool = [];
+        types.forEach(t => {
+            pool.push(t);
+            if (t !== lastType) pool.push(t); // Double weight for non-recent
+        });
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // Default: uniform random
+    return types[Math.floor(Math.random() * types.length)];
 }
 
 // ============================================
@@ -103,6 +169,28 @@ export function resolveClash() {
                     color: '#555555'
                 });
             }
+        } else if (stance === 'triple') {
+            // Triple tap on Giant - COMBO HIT!
+            player.score += 200;
+            state.screenShake = 15;
+            state.hitStop = 8;
+            state.chromaOffset = 5;
+            state.flashColor = '#ff8844';
+            state.flashAlpha = 0.8;
+            showText('COMBO HIT!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#ff8844');
+            playSFX('crit');
+            spawnParticles(enemy.x, enemy.y, 20, enemy.color);
+        } else if (stance === 'tapthenhold') {
+            // Tap-hold on Mage - MAGIC COUNTER!
+            player.score += 200;
+            state.screenShake = 12;
+            state.hitStop = 8;
+            state.chromaOffset = 4;
+            state.flashColor = '#ff44aa';
+            state.flashAlpha = 0.8;
+            showText('DISPEL!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#ff44aa');
+            playSFX('crit');
+            spawnParticles(enemy.x, enemy.y, 18, enemy.color);
         } else if (roll < 0.1 + feverBonus) {
             // OVERKILL! (more likely in fever mode)
             player.score += 300;

@@ -11,6 +11,8 @@ import {
     TRACK_DISTANCE,
     FRAMES_PER_SECOND,
     DOUBLE_TAP_SPACING,
+    TRIPLE_TAP_SPACING,
+    TAP_HOLD_SPACING,
     HOLD_TAIL_LENGTH,
     MISS_TEXTS
 } from './constants.js';
@@ -59,8 +61,11 @@ export function resetGame() {
     state.player.combo = 0;
     state.player.stance = 'idle';
     state.player.hasSeenArmored = false;
+    state.player.hasSeenGiant = false;
+    state.player.hasSeenMage = false;
     state.player.feverMode = false;
     state.enemy = null;
+    state.spawnHistory = [];
     state.bpm = STARTING_BPM;
     state.beatInterval = 60 / state.bpm;
     state.particles = [];
@@ -70,6 +75,12 @@ export function resetGame() {
     state.flashAlpha = 0;
     state.chargeLevel = 0;
     state.isHolding = false;
+    state.hitStop = 0;
+    state.chromaOffset = 0;
+    state.lastComboMilestone = 0;
+    state.comboMilestone = 0;
+    state.bigPromptAlpha = 0;
+    state.beatPulse = 0;
     state.gameState = 'playing';
     state.nextBeatTime = audioCtx.currentTime + 0.1;
     state.currentBeat = 0;
@@ -190,6 +201,10 @@ function advancePhase() {
                     showBigPrompt('ARCHER!', '#44ff44');
                 } else if (state.enemy.type === 'armored') {
                     showBigPrompt('ARMORED!', '#4488ff');
+                } else if (state.enemy.type === 'giant') {
+                    showBigPrompt('GIANT!', '#ff8844');
+                } else if (state.enemy.type === 'mage') {
+                    showBigPrompt('MAGE!', '#ff44aa');
                 }
             } else {
                 // Enemy returning
@@ -221,6 +236,33 @@ function advancePhase() {
                     hit: false,
                     tailLength: HOLD_TAIL_LENGTH
                 });
+            } else if (markerType === 'triple') {
+                // TRIPLE TAP: Three markers in sequence
+                for (let i = 0; i < 3; i++) {
+                    state.beatMarkers.push({
+                        x: canvas.width + 20 + i * TRIPLE_TAP_SPACING,
+                        type: markerType,
+                        hit: false,
+                        tripleIndex: i // 0, 1, 2
+                    });
+                }
+            } else if (markerType === 'tapthenhold') {
+                // TAP-HOLD: Two markers - first for tap, second for hold
+                state.beatMarkers.push({
+                    x: canvas.width + 20, // First marker (tap)
+                    type: markerType,
+                    hit: false,
+                    isTap: true,
+                    isHold: false
+                });
+                state.beatMarkers.push({
+                    x: canvas.width + 20 + TAP_HOLD_SPACING, // Second marker (hold)
+                    type: markerType,
+                    hit: false,
+                    isTap: false,
+                    isHold: true,
+                    tailLength: 50 // Short tail on hold marker
+                });
             } else {
                 // SINGLE TAP: Normal marker
                 state.beatMarkers.push({
@@ -240,6 +282,10 @@ function advancePhase() {
                     showBigPrompt('DOUBLE-TAP!', '#00ffff');
                 } else if (state.enemy.type === 'armored') {
                     showBigPrompt('HOLD!', '#4488ff');
+                } else if (state.enemy.type === 'giant') {
+                    showBigPrompt('TRIPLE-TAP!', '#ff8844');
+                } else if (state.enemy.type === 'mage') {
+                    showBigPrompt('TAP+HOLD!', '#ff44aa');
                 }
             }
             break;

@@ -110,12 +110,12 @@ export function drawWarrior() {
 
     // SQUASH & STRETCH based on stance
     let squashX = 1, squashY = 1;
-    if (player.stance === 'aggressive') {
+    if (player.stance === 'aggressive' || player.stance === 'triple') {
         // Stretch forward on attack
         squashX = 1.15;
         squashY = 0.9;
-    } else if (player.stance === 'defensive') {
-        // Squash down on block
+    } else if (player.stance === 'defensive' || player.stance === 'tapthenhold') {
+        // Squash down on block/dispel
         squashX = 1.1;
         squashY = 0.85;
     } else if (player.stance === 'stumble') {
@@ -190,6 +190,24 @@ export function drawWarrior() {
         ctx.fillRect(-2, -25, 4, 30);
         ctx.fillRect(-5, -25, 10, 5);
         ctx.restore();
+    } else if (player.stance === 'triple') {
+        // Triple slash - sword with motion lines
+        ctx.save();
+        ctx.translate(x + 18, y - 35);
+        ctx.rotate(-0.7);
+        ctx.fillStyle = '#ff8844';
+        ctx.fillRect(-2, -25, 4, 30);
+        ctx.fillRect(-5, -25, 10, 5);
+        // Motion lines
+        ctx.strokeStyle = '#ff884488';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-10 - i * 6, -20 + i * 8);
+            ctx.lineTo(-10 - i * 6, 5 + i * 8);
+            ctx.stroke();
+        }
+        ctx.restore();
     } else if (player.stance === 'defensive') {
         // Shield up
         ctx.beginPath();
@@ -198,6 +216,23 @@ export function drawWarrior() {
         ctx.strokeStyle = '#444444';
         ctx.lineWidth = 2;
         ctx.stroke();
+    } else if (player.stance === 'tapthenhold') {
+        // Magic dispel - glowing hand
+        ctx.fillStyle = '#ff44aa';
+        ctx.beginPath();
+        ctx.arc(x + 20, y - 30, 12, 0, Math.PI * 2);
+        ctx.fill();
+        // Magic glow
+        ctx.fillStyle = 'rgba(255, 68, 170, 0.4)';
+        ctx.beginPath();
+        ctx.arc(x + 20, y - 30, 20 + Math.sin(Date.now() / 50) * 3, 0, Math.PI * 2);
+        ctx.fill();
+        // Sparkles
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x + 15 + Math.sin(Date.now() / 100) * 5, y - 35, 2, 0, Math.PI * 2);
+        ctx.arc(x + 25, y - 25 + Math.cos(Date.now() / 80) * 4, 1.5, 0, Math.PI * 2);
+        ctx.fill();
     } else if (player.stance === 'charge' || chargeLevel > 0.3) {
         // Charged heavy weapon overhead
         ctx.fillStyle = chargeLevel > 0.8 || player.stance === 'charge' ? '#4488ff' : '#222222';
@@ -232,7 +267,9 @@ export function drawEnemy() {
     const glowColors = {
         swordsman: 'rgba(255,68,68,0.3)',
         archer: 'rgba(68,255,68,0.3)',
-        armored: 'rgba(68,136,255,0.4)'
+        armored: 'rgba(68,136,255,0.4)',
+        giant: 'rgba(255,136,68,0.4)',
+        mage: 'rgba(255,68,170,0.4)'
     };
     ctx.fillStyle = glowColors[enemy.type] || 'rgba(255,255,255,0.3)';
     ctx.beginPath();
@@ -323,6 +360,55 @@ export function drawEnemy() {
         ctx.lineTo(x - 5, y - 52);
         ctx.lineTo(x + 5, y - 52);
         ctx.fill();
+    } else if (enemy.weapon === 'club') {
+        // Giant's club - big and chunky
+        ctx.fillStyle = '#8B4513'; // Brown
+        ctx.save();
+        ctx.translate(x - 15, y - 20);
+        ctx.rotate(0.6);
+        // Handle
+        ctx.fillRect(-4, -10, 8, 45);
+        // Club head (thick end)
+        ctx.beginPath();
+        ctx.ellipse(0, -15, 12, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Spikes/bumps on club
+        ctx.fillStyle = '#5C3317';
+        ctx.beginPath();
+        ctx.arc(-8, -18, 4, 0, Math.PI * 2);
+        ctx.arc(6, -12, 4, 0, Math.PI * 2);
+        ctx.arc(-3, -25, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    } else if (enemy.weapon === 'staff') {
+        // Mage's staff with glowing orb
+        ctx.fillStyle = '#663399'; // Purple staff
+        ctx.save();
+        ctx.translate(x + 15, y - 25);
+        ctx.rotate(-0.2);
+        // Staff shaft
+        ctx.fillRect(-3, -35, 6, 50);
+        // Orb holder
+        ctx.beginPath();
+        ctx.arc(0, -40, 8, 0, Math.PI * 2);
+        ctx.fill();
+        // Glowing orb
+        const orbPulse = Math.sin(Date.now() / 100) * 2;
+        ctx.fillStyle = 'rgba(255,68,170,0.5)';
+        ctx.beginPath();
+        ctx.arc(0, -40, 12 + orbPulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ff44aa';
+        ctx.beginPath();
+        ctx.arc(0, -40, 6, 0, Math.PI * 2);
+        ctx.fill();
+        // Sparkles
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-3 + Math.sin(Date.now() / 200) * 3, -43, 2, 0, Math.PI * 2);
+        ctx.arc(4, -38 + Math.cos(Date.now() / 150) * 2, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
     }
 
     // Stagger indicator
@@ -505,7 +591,13 @@ export function drawUI() {
         // Skip rendering hit markers (they explode into particles)
         if (marker.hit) return;
 
-        const colors = { aggressive: '#ffff00', defensive: '#00ffff', charge: '#4488ff' };
+        const colors = {
+            aggressive: '#ffff00',
+            defensive: '#00ffff',
+            charge: '#4488ff',
+            triple: '#ff8844',
+            tapthenhold: '#ff44aa'
+        };
         const markerColor = colors[marker.type] || '#ffffff';
         const distToHit = Math.abs(marker.x - hitZoneX);
         const inHitZone = distToHit < 40;
@@ -560,6 +652,35 @@ export function drawUI() {
             }
         }
 
+        // TAP-HOLD marker: Draw tail on hold marker only
+        if (marker.type === 'tapthenhold' && marker.isHold && marker.tailLength) {
+            const tailEnd = marker.x + marker.tailLength;
+
+            // Tail glow (pink)
+            ctx.fillStyle = `rgba(255, 68, 170, 0.3)`;
+            ctx.fillRect(marker.x, trackY - 6, marker.tailLength, 12);
+
+            // Tail body
+            const gradient = ctx.createLinearGradient(marker.x, 0, tailEnd, 0);
+            gradient.addColorStop(0, markerColor);
+            gradient.addColorStop(1, `${markerColor}44`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(marker.x, trackY - 4, marker.tailLength, 8);
+
+            // Pulsing stripes when hold is active
+            if (marker.holdActive && marker.tailLength > 10) {
+                const stripeOffset = (Date.now() / 50) % 20;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                for (let sx = marker.x + stripeOffset; sx < tailEnd; sx += 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx, trackY - 3);
+                    ctx.lineTo(sx, trackY + 3);
+                    ctx.stroke();
+                }
+            }
+        }
+
         // Approaching glow (gets brighter near hit zone)
         if (distToHit < 80) {
             const glowIntensity = 1 - (distToHit / 80);
@@ -574,39 +695,87 @@ export function drawUI() {
         const baseSize = 16; // Bigger markers for clarity
 
         // PENDING STATE: First tap of double-tap registered, waiting for second
-        if (marker.pendingHit) {
+        if (marker.pendingHit && !marker.holdActive) {
             // Success color with rapid pulse
             const pendingPulse = Math.sin(Date.now() / 30) * 3;
-            ctx.fillStyle = '#88ffaa';
+            ctx.fillStyle = marker.type === 'tapthenhold' ? '#ff88cc' : '#88ffaa';
             ctx.beginPath();
             ctx.arc(marker.x, trackY, baseSize + pendingPulse, 0, Math.PI * 2);
             ctx.fill();
 
-            // Checkmark border
+            // Border
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // Checkmark symbol
+            // Symbol
             ctx.fillStyle = '#000000';
             ctx.font = 'bold 16px monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('✓', marker.x, trackY);
+            if (marker.type === 'tapthenhold' && marker.isHold) {
+                ctx.fillText('H', marker.x, trackY);
+            } else {
+                ctx.fillText('✓', marker.x, trackY);
+            }
             ctx.textBaseline = 'alphabetic';
 
-            // "TAP!" prompt above
-            ctx.fillStyle = '#88ffaa';
+            // Prompt above
+            const promptColor = marker.type === 'tapthenhold' ? '#ff88cc' : '#88ffaa';
+            ctx.fillStyle = promptColor;
             ctx.font = 'bold 12px monospace';
-            ctx.fillText('TAP!', marker.x, trackY - baseSize - 10);
+            const prompt = (marker.type === 'tapthenhold' && marker.isHold) ? 'HOLD!' : 'TAP!';
+            ctx.fillText(prompt, marker.x, trackY - baseSize - 10);
 
             // Ring expanding outward
             const ringProgress = ((Date.now() % 500) / 500);
-            ctx.strokeStyle = `rgba(136, 255, 170, ${1 - ringProgress})`;
+            ctx.strokeStyle = `rgba(${marker.type === 'tapthenhold' ? '255, 136, 204' : '136, 255, 170'}, ${1 - ringProgress})`;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(marker.x, trackY, baseSize + ringProgress * 20, 0, Math.PI * 2);
             ctx.stroke();
+        } else if (marker.holdActive) {
+            // HOLDING STATE: Player is holding on hold marker
+            const progress = marker.holdProgress || 0;
+            const holdPulse = Math.sin(Date.now() / 30) * 2;
+
+            // Background circle
+            ctx.fillStyle = '#ff44aa';
+            ctx.beginPath();
+            ctx.arc(marker.x, trackY, baseSize + holdPulse, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Progress arc
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(marker.x, trackY, baseSize + 3, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+            ctx.stroke();
+
+            // "H" symbol
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('H', marker.x, trackY);
+            ctx.textBaseline = 'alphabetic';
+
+            // "HOLD!" prompt
+            ctx.fillStyle = progress >= 1 ? '#ffffff' : '#ff88cc';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText(progress >= 1 ? 'READY!' : 'HOLD!', marker.x, trackY - baseSize - 10);
+
+            // Particles while holding
+            if (Math.random() < 0.3) {
+                state.particles.push({
+                    x: marker.x + (Math.random() - 0.5) * 30,
+                    y: trackY + (Math.random() - 0.5) * 30,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: -Math.random() * 2 - 1,
+                    life: 0.5,
+                    color: '#ff44aa'
+                });
+            }
         } else {
             // Normal marker rendering
             // Marker circle (bigger)
@@ -632,16 +801,27 @@ export function drawUI() {
                 ctx.fillText(marker.isSecond ? '2' : '1', marker.x, trackY);
             } else if (marker.type === 'charge') {
                 ctx.fillText('H', marker.x, trackY); // "H" for hold
+            } else if (marker.type === 'triple') {
+                // Show "1", "2", "3" for triple tap
+                ctx.fillText(`${marker.tripleIndex + 1}`, marker.x, trackY);
+            } else if (marker.type === 'tapthenhold') {
+                // "T" for tap marker, "H" for hold marker
+                ctx.fillText(marker.isTap ? 'T' : 'H', marker.x, trackY);
             }
             ctx.textBaseline = 'alphabetic';
         }
 
-        // Action label above marker when approaching (skip if pending - already has TAP! label)
-        if (distToHit < 100 && distToHit > 40 && !marker.pendingHit) {
+        // Action label above marker when approaching (skip if pending/active - already has prompt)
+        if (distToHit < 100 && distToHit > 40 && !marker.pendingHit && !marker.holdActive) {
             ctx.fillStyle = markerColor;
             ctx.font = 'bold 10px monospace';
-            const label = marker.type === 'aggressive' ? 'TAP' :
-                          marker.type === 'defensive' ? 'DBL' : 'HOLD';
+            let label = 'TAP';
+            if (marker.type === 'defensive') label = 'DBL';
+            else if (marker.type === 'charge') label = 'HOLD';
+            else if (marker.type === 'triple') label = 'TRI';
+            else if (marker.type === 'tapthenhold') {
+                label = marker.isTap ? 'TAP' : 'HOLD';
+            }
             ctx.fillText(label, marker.x, trackY - baseSize - 8);
         }
 
@@ -661,6 +841,51 @@ export function drawUI() {
                 ctx.lineTo(secondMarker.x - 14, trackY);
                 ctx.stroke();
                 ctx.setLineDash([]);
+            }
+        }
+
+        // Connect triple-tap markers with lines
+        // Draw from current marker to next marker (if both exist and not hit)
+        if (marker.type === 'triple' && marker.tripleIndex < 2) {
+            const nextMarker = beatMarkers.find(m =>
+                m.type === 'triple' && m.tripleIndex === marker.tripleIndex + 1 && !m.hit
+            );
+
+            if (nextMarker) {
+                ctx.strokeStyle = `${markerColor}88`;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(marker.x + 14, trackY);
+                ctx.lineTo(nextMarker.x - 14, trackY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        // Connect tap-hold markers with arrow line (tap → hold)
+        if (marker.type === 'tapthenhold' && marker.isTap && !marker.hit) {
+            const holdMarker = beatMarkers.find(m =>
+                m.type === 'tapthenhold' && m.isHold && !m.hit
+            );
+
+            if (holdMarker) {
+                ctx.strokeStyle = `${markerColor}88`;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(marker.x + 14, trackY);
+                ctx.lineTo(holdMarker.x - 14, trackY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Arrow head pointing to hold marker
+                ctx.fillStyle = `${markerColor}88`;
+                ctx.beginPath();
+                ctx.moveTo(holdMarker.x - 14, trackY);
+                ctx.lineTo(holdMarker.x - 22, trackY - 5);
+                ctx.lineTo(holdMarker.x - 22, trackY + 5);
+                ctx.fill();
             }
         }
     });

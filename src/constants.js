@@ -14,6 +14,15 @@ export const HOLD_THRESHOLD = 400; // ms to trigger charge attack
 // Spaced apart so you hit each one as it passes through
 export const DOUBLE_TAP_SPACING = 70;
 
+// Triple-tap (Giant) settings
+export const TRIPLE_TAP_SPACING = 50; // Tighter spacing for triple
+export const TRIPLE_TAP_WINDOW = 600; // ms - longer window for 3 taps
+
+// Tap-hold (Mage) settings
+export const TAP_HOLD_WINDOW = 400; // ms - time to start hold after tap
+export const TAP_HOLD_DURATION = 300; // ms - how long to hold after tap
+export const TAP_HOLD_SPACING = 60; // pixels between tap marker and hold marker
+
 // Beat track
 export const HIT_ZONE_X = 80; // Where you should hit
 export const HIT_RANGE = 110; // Very forgiving hit detection range
@@ -35,7 +44,9 @@ export const CHORD_ROOTS = [NOTES.C3, NOTES.G3, NOTES.A3, NOTES.C3];
 export const ENEMY_TYPES = {
     swordsman: { color: '#ff4444', eyes: '#ff0000', weapon: 'sword', counter: 'aggressive' },
     archer: { color: '#44ff44', eyes: '#00ff00', weapon: 'bow', counter: 'defensive' },
-    armored: { color: '#4488ff', eyes: '#0066ff', weapon: 'shield', counter: 'charge' }
+    armored: { color: '#4488ff', eyes: '#0066ff', weapon: 'shield', counter: 'charge' },
+    giant: { color: '#ff8844', eyes: '#ff6600', weapon: 'club', counter: 'triple' },
+    mage: { color: '#ff44aa', eyes: '#ff00aa', weapon: 'staff', counter: 'tapthenhold' }
 };
 
 // Kill text variety
@@ -57,3 +68,7 @@ export const TEMPO_UP_INTERVAL = 12; // bars between tempo increases
 export const FEVER_COMBO_THRESHOLD = 10;
 export const ARMORED_INTRO_SCORE = 200;
 export const ARMORED_GUARANTEE_BAR = 8;
+export const GIANT_INTRO_SCORE = 500;
+export const GIANT_INTRO_BAR = 16;
+export const MAGE_INTRO_SCORE = 400;
+export const MAGE_INTRO_BAR = 12;

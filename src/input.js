@@ -1,7 +1,10 @@
 // ============================================
 // INPUT HANDLING
 // ============================================
-import { DOUBLE_TAP_WINDOW, HOLD_THRESHOLD, HIT_RANGE } from './constants.js';
+import {
+    DOUBLE_TAP_WINDOW, HOLD_THRESHOLD, HIT_RANGE,
+    TRIPLE_TAP_WINDOW, TAP_HOLD_WINDOW, TAP_HOLD_DURATION
+} from './constants.js';
 import { state, dom } from './state.js';
 import { playSFX } from './audio.js';
 import { showText, spawnParticles } from './render.js';
@@ -13,6 +16,21 @@ let doubleTapState = {
     firstHitDist: 0
 };
 
+// Track triple-tap progress (Giant)
+let tripleTapState = {
+    hitCount: 0, // 0, 1, 2, or 3
+    firstHitTime: 0,
+    totalDist: 0
+};
+
+// Track tap-hold progress (Mage)
+let tapHoldState = {
+    tapped: false,
+    tapTime: 0,
+    holdStarted: false,
+    holdStartTime: 0
+};
+
 // ============================================
 // INPUT DOWN (key press, mouse down, touch start)
 // ============================================
@@ -22,99 +40,211 @@ export function handleInputDown() {
     state.isHolding = true;
     state.lastTapTime = now;
 
-    // Check for double-tap markers in range
-    let hitMarker1 = null;
-    let hitMarker2 = null;
+    // Check if we're continuing a tap-hold sequence (second press for hold)
+    if (tapHoldState.tapped && !tapHoldState.holdStarted) {
+        const elapsed = now - tapHoldState.tapTime;
+        if (elapsed < TAP_HOLD_WINDOW) {
+            // Start the hold phase!
+            tapHoldState.holdStarted = true;
+            tapHoldState.holdStartTime = now;
+            showText('HOLD!', state.hitZoneX, dom.canvas.height - 55, '#ff44aa');
+            return;
+        }
+    }
+
+    // Find markers in range by type
+    const markersInRange = findMarkersInRange();
+
+    // TRIPLE-TAP LOGIC (Giant)
+    if (markersInRange.triple.length > 0 || tripleTapState.hitCount > 0) {
+        handleTripleTap(now, markersInRange.triple);
+        return;
+    }
+
+    // DOUBLE-TAP LOGIC (Archer)
+    if (markersInRange.defensive.length > 0 || doubleTapState.firstHit) {
+        handleDoubleTap(now, markersInRange.defensive);
+        return;
+    }
+
+    // TAP-HOLD LOGIC - First tap (Mage)
+    if (markersInRange.tapthenhold.length > 0) {
+        handleTapHoldFirstTap(now, markersInRange.tapthenhold[0]);
+        return;
+    }
+
+    // Otherwise, let handleInputUp deal with single tap or charge
+}
+
+// Find all markers in range, grouped by type
+function findMarkersInRange() {
+    const result = {
+        defensive: [],
+        triple: [],
+        tapthenhold: [],
+        other: []
+    };
 
     state.beatMarkers.forEach(marker => {
-        if (marker.type !== 'defensive' || marker.hit) return;
+        if (marker.hit) return;
         const dist = Math.abs(marker.x - state.hitZoneX);
         if (dist < HIT_RANGE) {
-            if (!marker.isSecond) {
-                hitMarker1 = { marker, dist };
+            const entry = { marker, dist };
+            if (marker.type === 'defensive') {
+                result.defensive.push(entry);
+            } else if (marker.type === 'triple') {
+                result.triple.push(entry);
+            } else if (marker.type === 'tapthenhold' && marker.isTap) {
+                // Only push tap markers for initial detection
+                result.tapthenhold.push(entry);
             } else {
-                hitMarker2 = { marker, dist };
+                result.other.push(entry);
             }
         }
     });
 
-    // SEQUENTIAL DOUBLE-TAP LOGIC
+    // Sort by tripleIndex for triple markers
+    result.triple.sort((a, b) => a.marker.tripleIndex - b.marker.tripleIndex);
+
+    return result;
+}
+
+// Handle double-tap input (Archer)
+function handleDoubleTap(now, defensiveMarkers) {
+    // Sort to get marker 1 (isSecond: false) and marker 2 (isSecond: true)
+    const marker1 = defensiveMarkers.find(m => !m.marker.isSecond);
+    const marker2 = defensiveMarkers.find(m => m.marker.isSecond);
+
     if (doubleTapState.firstHit) {
-        // We already hit marker 1, now looking for marker 2
-        if (hitMarker2) {
-            // SUCCESS! Complete the double-tap
-            hitMarker2.marker.hit = true;
-            hitMarker2.marker.pendingHit = false;
+        // Looking for marker 2
+        if (marker2) {
+            // SUCCESS!
+            marker2.marker.hit = true;
+            marker2.marker.pendingHit = false;
             state.player.stance = 'defensive';
             playSFX('block');
             state.isHolding = false;
 
-            // Timing based on average of both hits
-            const avgDist = (doubleTapState.firstHitDist + hitMarker2.dist) / 2;
+            const avgDist = (doubleTapState.firstHitDist + marker2.dist) / 2;
             showTimingFeedback(avgDist, '#00ffff');
-
-            // Success particles
-            for (let i = 0; i < 15; i++) {
-                state.particles.push({
-                    x: state.hitZoneX,
-                    y: dom.canvas.height - 35,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 0.8,
-                    color: i % 2 === 0 ? '#00ffff' : '#ffffff'
-                });
-            }
-
-            // Reset double-tap state
+            spawnSuccessParticles('#00ffff');
             doubleTapState = { firstHit: false, firstHitTime: 0, firstHitDist: 0 };
         } else {
-            // Marker 2 not in range yet - tapped too early for second hit
-            // Show feedback but don't fail yet (they might still be waiting)
             showText('WAIT...', state.hitZoneX, dom.canvas.height - 55, '#ffaa00');
-            for (let i = 0; i < 4; i++) {
-                state.particles.push({
-                    x: state.hitZoneX,
-                    y: dom.canvas.height - 35,
-                    vx: (Math.random() - 0.5) * 3,
-                    vy: -Math.random() * 2,
-                    life: 0.3,
-                    color: '#ffaa00'
-                });
-            }
+            spawnSmallParticles('#ffaa00', 4);
         }
-    } else {
-        // Looking for first hit
-        if (hitMarker1) {
-            // Hit marker 1!
-            hitMarker1.marker.hit = true;
-            doubleTapState = {
-                firstHit: true,
-                firstHitTime: now,
-                firstHitDist: hitMarker1.dist
-            };
+    } else if (marker1) {
+        // First hit
+        marker1.marker.hit = true;
+        doubleTapState = { firstHit: true, firstHitTime: now, firstHitDist: marker1.dist };
 
-            // Mark the second marker as pending (for visual feedback)
-            state.beatMarkers.forEach(m => {
-                if (m.type === 'defensive' && m.isSecond && !m.hit) {
-                    m.pendingHit = true;
-                }
-            });
-
-            // Visual feedback for first hit
-            showText('1!', state.hitZoneX, dom.canvas.height - 55, '#88ffaa');
-            for (let i = 0; i < 8; i++) {
-                state.particles.push({
-                    x: state.hitZoneX,
-                    y: dom.canvas.height - 35,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: (Math.random() - 0.5) * 6,
-                    life: 0.5,
-                    color: '#88ffaa'
-                });
+        // Mark second marker as pending
+        state.beatMarkers.forEach(m => {
+            if (m.type === 'defensive' && m.isSecond && !m.hit) {
+                m.pendingHit = true;
             }
+        });
+
+        showText('1!', state.hitZoneX, dom.canvas.height - 55, '#88ffaa');
+        spawnSmallParticles('#88ffaa', 8);
+    }
+}
+
+// Handle triple-tap input (Giant)
+function handleTripleTap(now, tripleMarkers) {
+    // Find the next marker to hit based on tripleIndex
+    const nextIndex = tripleTapState.hitCount;
+    const nextMarker = tripleMarkers.find(m => m.marker.tripleIndex === nextIndex);
+
+    if (nextMarker) {
+        // Hit this marker!
+        nextMarker.marker.hit = true;
+        tripleTapState.hitCount++;
+        tripleTapState.totalDist += nextMarker.dist;
+
+        if (tripleTapState.hitCount === 1) {
+            tripleTapState.firstHitTime = now;
         }
-        // If no defensive marker found, firstTapInfo stays unset
-        // and handleInputUp will process as single tap or charge
+
+        // Mark next marker as pending
+        state.beatMarkers.forEach(m => {
+            if (m.type === 'triple' && m.tripleIndex === nextIndex + 1 && !m.hit) {
+                m.pendingHit = true;
+            }
+        });
+
+        if (tripleTapState.hitCount >= 3) {
+            // SUCCESS! All three hit
+            state.player.stance = 'triple';
+            playSFX('hit');
+            state.isHolding = false;
+
+            const avgDist = tripleTapState.totalDist / 3;
+            showTimingFeedback(avgDist, '#ff8844');
+            spawnSuccessParticles('#ff8844');
+            tripleTapState = { hitCount: 0, firstHitTime: 0, totalDist: 0 };
+        } else {
+            showText(`${tripleTapState.hitCount}!`, state.hitZoneX, dom.canvas.height - 55, '#ffaa66');
+            spawnSmallParticles('#ffaa66', 6);
+        }
+    } else if (tripleTapState.hitCount > 0) {
+        // In progress but next marker not in range yet
+        showText('WAIT...', state.hitZoneX, dom.canvas.height - 55, '#ffaa00');
+        spawnSmallParticles('#ffaa00', 4);
+    }
+}
+
+// Handle first tap of tap-hold (Mage)
+function handleTapHoldFirstTap(now, markerEntry) {
+    // Register the tap, but DON'T set isHolding false yet
+    // Player needs to release and press again to hold
+    tapHoldState = {
+        tapped: true,
+        tapTime: now,
+        holdStarted: false,
+        holdStartTime: 0
+    };
+
+    // Mark tap marker as hit
+    markerEntry.marker.hit = true;
+    markerEntry.marker.tapRegistered = true;
+
+    // Set hold marker as pending
+    state.beatMarkers.forEach(m => {
+        if (m.type === 'tapthenhold' && m.isHold && !m.hit) {
+            m.pendingHit = true;
+        }
+    });
+
+    showText('TAP!', state.hitZoneX, dom.canvas.height - 55, '#ff44aa');
+    spawnSmallParticles('#ff44aa', 6);
+}
+
+// Helper: spawn success particles
+function spawnSuccessParticles(color) {
+    for (let i = 0; i < 15; i++) {
+        state.particles.push({
+            x: state.hitZoneX,
+            y: dom.canvas.height - 35,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            life: 0.8,
+            color: i % 2 === 0 ? color : '#ffffff'
+        });
+    }
+}
+
+// Helper: spawn small particles
+function spawnSmallParticles(color, count) {
+    for (let i = 0; i < count; i++) {
+        state.particles.push({
+            x: state.hitZoneX,
+            y: dom.canvas.height - 35,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            life: 0.5,
+            color: color
+        });
     }
 }
 
@@ -149,8 +279,8 @@ export function markBeatHit(actionType) {
     state.beatMarkers.forEach(marker => {
         const dist = Math.abs(marker.x - state.hitZoneX);
         if (!marker.hit && dist < HIT_RANGE && dist < bestDist) {
-            // Skip defensive markers for non-defensive actions
-            if (marker.type === 'defensive') return;
+            // Skip markers that have their own input handling
+            if (marker.type === 'defensive' || marker.type === 'triple' || marker.type === 'tapthenhold') return;
             bestMarker = marker;
             bestDist = dist;
         }
@@ -202,14 +332,47 @@ export function handleInputUp() {
     const holdDuration = now - state.holdStartTime;
     state.isHolding = false;
 
-    // If defensive action already complete, done
-    if (state.player.stance === 'defensive') return;
+    // If action already complete, done
+    if (state.player.stance === 'defensive' || state.player.stance === 'triple' || state.player.stance === 'tapthenhold') return;
 
     // Check if we were in middle of double-tap
     if (doubleTapState.firstHit) {
         // Player released after hitting marker 1 but before completing marker 2
         // This is expected! They need to tap again for marker 2
-        // Don't set stance yet - wait for second tap or timeout
+        return;
+    }
+
+    // Check if we were in middle of triple-tap
+    if (tripleTapState.hitCount > 0) {
+        // Player released but hasn't completed all 3 hits
+        // This is expected! They need to tap again
+        return;
+    }
+
+    // Check if this release completes the tap part of tap-hold
+    if (tapHoldState.tapped && !tapHoldState.holdStarted) {
+        // Tap registered, now waiting for hold press
+        // Update tapTime to release time so window starts from here
+        tapHoldState.tapTime = now;
+        return;
+    }
+
+    // Check if holding during tap-hold
+    if (tapHoldState.holdStarted) {
+        // Released too early during hold phase
+        showText('HOLD LONGER!', state.hitZoneX, dom.canvas.height - 55, '#ff6666');
+        spawnSmallParticles('#ff6666', 6);
+
+        // Clear hold state on markers
+        state.beatMarkers.forEach(m => {
+            if (m.type === 'tapthenhold' && m.isHold) {
+                m.holdActive = false;
+                m.holdProgress = 0;
+                m.pendingHit = false;
+            }
+        });
+
+        tapHoldState = { tapped: false, tapTime: 0, holdStarted: false, holdStartTime: 0 };
         return;
     }
 
@@ -231,14 +394,50 @@ export function handleInputUp() {
 // UPDATE CHARGE (called each frame)
 // ============================================
 export function updateCharge() {
+    const now = performance.now();
+
     if (state.isHolding) {
-        const holdDuration = performance.now() - state.holdStartTime;
+        const holdDuration = now - state.holdStartTime;
         state.chargeLevel = Math.min(1, holdDuration / HOLD_THRESHOLD);
+
+        // Check tap-hold completion
+        if (tapHoldState.holdStarted) {
+            const holdElapsed = now - tapHoldState.holdStartTime;
+
+            // Update hold marker visual state
+            state.beatMarkers.forEach(m => {
+                if (m.type === 'tapthenhold' && m.isHold && !m.hit) {
+                    m.holdActive = true;
+                    m.holdProgress = Math.min(1, holdElapsed / TAP_HOLD_DURATION);
+                }
+            });
+
+            if (holdElapsed >= TAP_HOLD_DURATION) {
+                // SUCCESS! Tap-hold complete
+                state.player.stance = 'tapthenhold';
+                state.isHolding = false;
+                playSFX('block');
+
+                // Mark the hold marker as hit
+                state.beatMarkers.forEach(m => {
+                    if (m.type === 'tapthenhold' && m.isHold) {
+                        m.hit = true;
+                        m.holdActive = false;
+                        m.pendingHit = false;
+                    }
+                });
+
+                showTimingFeedback(30, '#ff44aa'); // Good timing feedback
+                spawnSuccessParticles('#ff44aa');
+                tapHoldState = { tapped: false, tapTime: 0, holdStarted: false, holdStartTime: 0 };
+            }
+            return; // Don't do normal charge logic during tap-hold
+        }
 
         // Auto-trigger charge visual when fully charged
         if (holdDuration >= HOLD_THRESHOLD && state.player.stance === 'idle') {
-            // Don't auto-trigger if in middle of double-tap
-            if (!doubleTapState.firstHit) {
+            // Don't auto-trigger if in middle of multi-tap sequences
+            if (!doubleTapState.firstHit && tripleTapState.hitCount === 0 && !tapHoldState.tapped) {
                 state.player.stance = 'charge';
                 playSFX('charge');
             }
@@ -250,47 +449,87 @@ export function updateCharge() {
 
     // Check for double-tap timeout
     if (doubleTapState.firstHit) {
-        const elapsed = performance.now() - doubleTapState.firstHitTime;
+        const elapsed = now - doubleTapState.firstHitTime;
         if (elapsed > DOUBLE_TAP_WINDOW) {
-            // Timeout! Player didn't hit marker 2 in time
-            showText('TOO SLOW!', state.hitZoneX, dom.canvas.height - 55, '#ff6666');
+            handleTimeout('double');
+        }
+    }
 
-            // Failure particles
-            for (let i = 0; i < 8; i++) {
-                state.particles.push({
-                    x: state.hitZoneX,
-                    y: dom.canvas.height - 35,
-                    vx: (Math.random() - 0.5) * 5,
-                    vy: -Math.random() * 3,
-                    life: 0.5,
-                    color: '#ff4444'
-                });
-            }
+    // Check for triple-tap timeout
+    if (tripleTapState.hitCount > 0) {
+        const elapsed = now - tripleTapState.firstHitTime;
+        if (elapsed > TRIPLE_TAP_WINDOW) {
+            handleTimeout('triple');
+        }
+    }
 
-            // Clear pending state on remaining markers
-            state.beatMarkers.forEach(m => {
-                if (m.pendingHit) m.pendingHit = false;
-            });
-
-            // Set aggressive (wrong action) since they only did one tap
-            if (state.player.stance === 'idle') {
-                state.player.stance = 'aggressive';
-                playSFX('attack');
-            }
-
-            doubleTapState = { firstHit: false, firstHitTime: 0, firstHitDist: 0 };
+    // Check for tap-hold timeout (tap registered but no hold started)
+    if (tapHoldState.tapped && !tapHoldState.holdStarted) {
+        const elapsed = now - tapHoldState.tapTime;
+        if (elapsed > TAP_HOLD_WINDOW) {
+            handleTimeout('tapthenhold');
         }
     }
 }
 
+// Handle timeout for multi-tap sequences
+function handleTimeout(type) {
+    showText('TOO SLOW!', state.hitZoneX, dom.canvas.height - 55, '#ff6666');
+
+    // Failure particles
+    for (let i = 0; i < 8; i++) {
+        state.particles.push({
+            x: state.hitZoneX,
+            y: dom.canvas.height - 35,
+            vx: (Math.random() - 0.5) * 5,
+            vy: -Math.random() * 3,
+            life: 0.5,
+            color: '#ff4444'
+        });
+    }
+
+    // Clear pending/active state on remaining markers
+    state.beatMarkers.forEach(m => {
+        if (m.pendingHit) m.pendingHit = false;
+        if (m.holdActive) {
+            m.holdActive = false;
+            m.holdProgress = 0;
+        }
+    });
+
+    // Set wrong stance
+    if (state.player.stance === 'idle') {
+        state.player.stance = 'aggressive';
+        playSFX('attack');
+    }
+
+    // Reset the appropriate state
+    if (type === 'double') {
+        doubleTapState = { firstHit: false, firstHitTime: 0, firstHitDist: 0 };
+    } else if (type === 'triple') {
+        tripleTapState = { hitCount: 0, firstHitTime: 0, totalDist: 0 };
+    } else if (type === 'tapthenhold') {
+        tapHoldState = { tapped: false, tapTime: 0, holdStarted: false, holdStartTime: 0 };
+    }
+}
+
 // ============================================
-// RESET DOUBLE TAP STATE (called on phase change)
+// RESET ALL INPUT STATES (called on phase change)
 // ============================================
 export function resetFirstTap() {
     doubleTapState = { firstHit: false, firstHitTime: 0, firstHitDist: 0 };
+    tripleTapState = { hitCount: 0, firstHitTime: 0, totalDist: 0 };
+    tapHoldState = { tapped: false, tapTime: 0, holdStarted: false, holdStartTime: 0 };
     state.beatMarkers.forEach(marker => {
         if (marker.pendingHit) {
             marker.pendingHit = false;
+        }
+        if (marker.tapRegistered) {
+            marker.tapRegistered = false;
+        }
+        if (marker.holdActive) {
+            marker.holdActive = false;
+            marker.holdProgress = 0;
         }
     });
 }
