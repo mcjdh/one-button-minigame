@@ -11,6 +11,7 @@ export const state = {
 
     // Audio timing
     bpm: STARTING_BPM,
+    maxBpmReached: STARTING_BPM, // Track highest BPM for game over stats
     beatInterval: 60 / STARTING_BPM,
     nextBeatTime: 0,
     currentBeat: 0, // 0-3 for the 4-beat cycle
@@ -24,8 +25,23 @@ export const state = {
         hasSeenArmored: false,
         hasSeenGiant: false,
         hasSeenMage: false,
-        feverMode: false
+        feverMode: false,
+        // Animation state
+        animTimer: 0, // General animation timer
+        victoryTimer: 0, // Victory pose duration
+        damageTimer: 0, // Damage recoil duration
+        lastStance: 'idle', // For transition animations
+        attackPhase: 0 // 0=none, 1=windup, 2=strike, 3=recovery
     },
+
+    // Cape physics (array of control points)
+    // Initialized to hang behind player position (x=60, y~=155)
+    capePoints: [
+        { x: 52, y: 120, vx: 0, vy: 0 },
+        { x: 44, y: 132, vx: 0, vy: 0 },
+        { x: 36, y: 144, vx: 0, vy: 0 },
+        { x: 28, y: 156, vx: 0, vy: 0 }
+    ],
 
     // Current enemy
     enemy: null,
@@ -50,6 +66,7 @@ export const state = {
     floatingTexts: [],
     beatMarkers: [],
     hitZoneX: HIT_ZONE_X,
+    deathGhosts: [], // Dying enemies for death animation
 
     // Juice effects
     hitStop: 0, // Freeze frames on big hits

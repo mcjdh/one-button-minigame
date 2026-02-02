@@ -40,13 +40,13 @@ export const NOTES = {
 // Chord progression: I - V - vi - IV (C - G - Am - F) - Simplified
 export const CHORD_ROOTS = [NOTES.C3, NOTES.G3, NOTES.A3, NOTES.C3];
 
-// Enemy type definitions
+// Enemy type definitions - vibrant distinct colors
 export const ENEMY_TYPES = {
-    swordsman: { color: '#ff4444', eyes: '#ff0000', weapon: 'sword', counter: 'aggressive' },
-    archer: { color: '#44ff44', eyes: '#00ff00', weapon: 'bow', counter: 'defensive' },
-    armored: { color: '#4488ff', eyes: '#0066ff', weapon: 'shield', counter: 'charge' },
-    giant: { color: '#ff8844', eyes: '#ff6600', weapon: 'club', counter: 'triple' },
-    mage: { color: '#ff44aa', eyes: '#ff00aa', weapon: 'staff', counter: 'tapthenhold' }
+    swordsman: { color: '#e63946', eyes: '#ff6b6b', weapon: 'sword', counter: 'aggressive' },    // Crimson red
+    archer: { color: '#2a9d8f', eyes: '#40ffdc', weapon: 'bow', counter: 'defensive' },          // Teal green
+    armored: { color: '#457b9d', eyes: '#90e0ef', weapon: 'shield', counter: 'charge' },         // Steel blue
+    giant: { color: '#e76f51', eyes: '#ffba08', weapon: 'club', counter: 'triple' },             // Burnt orange
+    mage: { color: '#9d4edd', eyes: '#e0aaff', weapon: 'staff', counter: 'tapthenhold' }         // Royal purple
 };
 
 // Kill text variety
@@ -61,10 +61,12 @@ export const DAMAGE_TEXTS = ['OUCH!', 'OOF!', 'AGH!', 'ARGH!', 'UGH!'];
 export const HOLD_TAIL_LENGTH = 120;
 
 // Game balance
-export const STARTING_BPM = 55; // Slightly slower start for learning
-export const MAX_BPM = 100;
+export const STARTING_BPM = 60; // Comfortable starting pace
+export const MAX_BPM = 130;     // Fast but achievable max
 export const BPM_INCREMENT = 3;
-export const TEMPO_UP_INTERVAL = 12; // bars between tempo increases
+export const BPM_PER_KILL = 1;  // Gradual ramp per enemy slain
+export const BPM_DAMAGE_PENALTY = -5; // Slow down on damage for recovery
+export const TEMPO_UP_INTERVAL = 12; // bars between tempo increases (legacy)
 export const FEVER_COMBO_THRESHOLD = 10;
 export const ARMORED_INTRO_SCORE = 200;
 export const ARMORED_GUARANTEE_BAR = 8;

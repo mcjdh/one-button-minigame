@@ -4,9 +4,6 @@
 import {
     SCALE,
     STARTING_BPM,
-    MAX_BPM,
-    BPM_INCREMENT,
-    TEMPO_UP_INTERVAL,
     FEVER_COMBO_THRESHOLD,
     TRACK_DISTANCE,
     FRAMES_PER_SECOND,
@@ -65,13 +62,18 @@ export function resetGame() {
     state.player.hasSeenGiant = false;
     state.player.hasSeenMage = false;
     state.player.feverMode = false;
+    state.player.victoryTimer = 0;
+    state.player.damageTimer = 0;
+    state.player.attackPhase = 0;
     state.enemy = null;
     state.spawnHistory = [];
     state.bpm = STARTING_BPM;
+    state.maxBpmReached = STARTING_BPM;
     state.beatInterval = 60 / state.bpm;
     state.particles = [];
     state.floatingTexts = [];
     state.beatMarkers = [];
+    state.deathGhosts = [];
     state.screenShake = 0;
     state.flashAlpha = 0;
     state.chargeLevel = 0;
@@ -87,6 +89,11 @@ export function resetGame() {
     state.currentBeat = 0;
     state.currentBar = 0;
     state.phase = 0;
+    // Reset cape physics to hang behind player
+    state.capePoints[0] = { x: 52, y: 120, vx: 0, vy: 0 };
+    state.capePoints[1] = { x: 44, y: 132, vx: 0, vy: 0 };
+    state.capePoints[2] = { x: 36, y: 144, vx: 0, vy: 0 };
+    state.capePoints[3] = { x: 28, y: 156, vx: 0, vy: 0 };
 }
 
 // ============================================
@@ -304,7 +311,7 @@ function advancePhase() {
                 // JUICE: Screen effects
                 state.screenShake = 8;
                 state.flashColor = '#ff0000';
-                state.flashAlpha = 0.4;
+                state.flashAlpha = 0.15;
                 state.hitStop = 4;
 
                 // Big X burst from hit zone
@@ -341,7 +348,7 @@ function advancePhase() {
                 showBigPrompt('FEVER MODE!', '#ff00ff');
                 state.screenShake = 10;
                 state.flashColor = '#ff00ff';
-                state.flashAlpha = 0.6;
+                state.flashAlpha = 0.12;
             }
             break;
 
@@ -350,12 +357,7 @@ function advancePhase() {
             if (state.enemy && !state.enemy.alive) {
                 state.enemy = null;
             }
-            // Increase tempo over time
-            if (state.currentBar > 0 && state.currentBar % TEMPO_UP_INTERVAL === 0) {
-                state.bpm = Math.min(state.bpm + BPM_INCREMENT, MAX_BPM);
-                state.beatInterval = 60 / state.bpm;
-                showBigPrompt('TEMPO UP!', '#ff8800');
-            }
+            // BPM now increases per-kill in combat.js
             break;
     }
 }

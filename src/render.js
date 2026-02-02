@@ -1,7 +1,7 @@
 // ============================================
 // RENDERING
 // ============================================
-import { DOUBLE_TAP_WINDOW } from './constants.js';
+import { DOUBLE_TAP_WINDOW, STARTING_BPM } from './constants.js';
 import { state, dom } from './state.js';
 
 // ============================================
@@ -34,14 +34,75 @@ export function spawnParticles(x, y, count, color) {
 // ============================================
 // BACKGROUND
 // ============================================
+
+// Environment themes based on score
+const ENVIRONMENTS = {
+    sunset: {
+        sky: ['#ff6b35', '#f79322', '#ff4444', '#1a0a0a'],
+        sun: '#ffdd44',
+        mountains: '#0a0505',
+        ground: '#0f0808'
+    },
+    desert: {
+        sky: ['#ffcc66', '#ff9933', '#cc6600', '#331100'],
+        sun: '#ffff88',
+        mountains: '#553311',
+        ground: '#442200'
+    },
+    forest: {
+        sky: ['#226644', '#114422', '#0a2211', '#050a05'],
+        sun: '#aaffaa',
+        mountains: '#0a1a0a',
+        ground: '#0a1505'
+    },
+    castle: {
+        sky: ['#442266', '#331155', '#220a44', '#0a0510'],
+        sun: '#aa88ff',
+        mountains: '#1a0a20',
+        ground: '#0f0515'
+    }
+};
+
+// Parallax cloud state (persists between frames)
+let clouds = [];
+function initClouds() {
+    if (clouds.length === 0) {
+        for (let i = 0; i < 5; i++) {
+            clouds.push({
+                x: Math.random() * 500,
+                y: 30 + Math.random() * 60,
+                size: 20 + Math.random() * 30,
+                speed: 0.2 + Math.random() * 0.3
+            });
+        }
+    }
+}
+
 export function drawBackground() {
     const { ctx, canvas } = dom;
     const { player } = state;
 
-    // Sunset gradient with beat pulse (more intense in fever mode)
+    initClouds();
+
+    // Determine environment based on score
+    let env;
+    if (player.feverMode) {
+        env = null; // Use special fever palette
+    } else if (player.score >= 800) {
+        env = ENVIRONMENTS.castle;
+    } else if (player.score >= 500) {
+        env = ENVIRONMENTS.forest;
+    } else if (player.score >= 200) {
+        env = ENVIRONMENTS.desert;
+    } else {
+        env = ENVIRONMENTS.sunset;
+    }
+
+    // Beat pulse intensity
     const pulseIntensity = state.beatPulse * (player.feverMode ? 0.3 : 0.15);
     const feverPulse = player.feverMode ? Math.sin(Date.now() / 100) * 0.15 : 0;
 
+    // Sky gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     if (player.feverMode) {
         // Purple/magenta fever palette
@@ -50,11 +111,10 @@ export function drawBackground() {
         gradient.addColorStop(0.7, `rgb(${150}, ${30 + pulseIntensity * 30}, ${150 + pulseIntensity * 30})`);
         gradient.addColorStop(1, '#1a0a1a');
     } else {
-        // Normal sunset palette
-        gradient.addColorStop(0, `rgb(${255}, ${107 + pulseIntensity * 50}, ${53 + pulseIntensity * 50})`);
-        gradient.addColorStop(0.4, `rgb(${247}, ${147 + pulseIntensity * 40}, ${30 + pulseIntensity * 40})`);
-        gradient.addColorStop(0.7, `rgb(${255}, ${68 + pulseIntensity * 30}, ${68 + pulseIntensity * 30})`);
-        gradient.addColorStop(1, '#1a0a0a');
+        gradient.addColorStop(0, env.sky[0]);
+        gradient.addColorStop(0.4, env.sky[1]);
+        gradient.addColorStop(0.7, env.sky[2]);
+        gradient.addColorStop(1, env.sky[3]);
     }
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -62,10 +122,60 @@ export function drawBackground() {
     // Beat pulse decay
     state.beatPulse *= 0.9;
 
-    // Sun (pink in fever mode)
-    ctx.fillStyle = player.feverMode ? '#ff66ff' : '#ffdd44';
+    // Parallax clouds (speed scales with BPM!)
+    const bpmMultiplier = 0.5 + (state.bpm / STARTING_BPM) * 0.8; // Faster clouds at higher BPM
+    const cloudColor = player.feverMode ? 'rgba(255,100,255,0.3)' :
+        (env === ENVIRONMENTS.castle ? 'rgba(100,50,150,0.4)' :
+        (env === ENVIRONMENTS.forest ? 'rgba(100,150,100,0.3)' : 'rgba(255,200,150,0.4)'));
+    ctx.fillStyle = cloudColor;
+    clouds.forEach(cloud => {
+        // Draw cloud as overlapping circles
+        ctx.beginPath();
+        ctx.arc(cloud.x, cloud.y, cloud.size * 0.6, 0, Math.PI * 2);
+        ctx.arc(cloud.x + cloud.size * 0.4, cloud.y - cloud.size * 0.2, cloud.size * 0.5, 0, Math.PI * 2);
+        ctx.arc(cloud.x + cloud.size * 0.8, cloud.y, cloud.size * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Move cloud (faster at higher BPM)
+        cloud.x -= cloud.speed * bpmMultiplier;
+        if (cloud.x + cloud.size < 0) {
+            cloud.x = canvas.width + cloud.size;
+            cloud.y = 30 + Math.random() * 60;
+        }
+    });
+
+    // Speed streaks at high BPM (appears after 80 BPM)
+    if (state.bpm >= 80) {
+        const streakIntensity = Math.min(1, (state.bpm - 80) / 40);
+        ctx.strokeStyle = player.feverMode ? `rgba(255, 100, 255, ${streakIntensity * 0.3})` : `rgba(255, 200, 100, ${streakIntensity * 0.2})`;
+        ctx.lineWidth = 1;
+
+        const streakCount = Math.floor(1 + 7 * streakIntensity);
+        for (let i = 0; i < streakCount; i++) {
+            const streakY = 50 + (i * 25) % (canvas.height - 80);
+            // Ensure divisor never goes below 4 to prevent too-fast animation
+            const streakSpeed = Math.max(4, 8 - streakIntensity * 4);
+            const streakOffset = (Date.now() / streakSpeed + i * 50) % (canvas.width + 100);
+            const streakLength = 30 + streakIntensity * 40;
+
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - streakOffset, streakY);
+            ctx.lineTo(canvas.width - streakOffset + streakLength, streakY);
+            ctx.stroke();
+        }
+    }
+
+    // Sun/moon (changes with environment)
+    const sunColor = player.feverMode ? '#ff66ff' : env.sun;
+    ctx.fillStyle = sunColor;
     ctx.beginPath();
     ctx.arc(canvas.width - 80, 60, 40 + (player.feverMode ? Math.sin(Date.now() / 80) * 5 : 0), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sun glow
+    ctx.fillStyle = player.feverMode ? 'rgba(255,100,255,0.2)' : 'rgba(255,220,100,0.15)';
+    ctx.beginPath();
+    ctx.arc(canvas.width - 80, 60, 55, 0, Math.PI * 2);
     ctx.fill();
 
     // Fever sparkle particles
@@ -80,8 +190,9 @@ export function drawBackground() {
         });
     }
 
-    // Silhouette mountains
-    ctx.fillStyle = '#0a0505';
+    // Silhouette mountains (color changes with environment)
+    const mountainColor = player.feverMode ? '#200a20' : env.mountains;
+    ctx.fillStyle = mountainColor;
     ctx.beginPath();
     ctx.moveTo(0, canvas.height);
     ctx.lineTo(50, canvas.height - 60);
@@ -93,40 +204,199 @@ export function drawBackground() {
     ctx.lineTo(canvas.width, canvas.height);
     ctx.fill();
 
-    // Ground
-    ctx.fillStyle = '#0f0808';
+    // Ground with beat pulse
+    const groundColor = player.feverMode ? '#150510' : env.ground;
+    ctx.fillStyle = groundColor;
     ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+
+    // Ground beat pulse line
+    if (state.beatPulse > 0.1) {
+        ctx.strokeStyle = player.feverMode ? `rgba(255,0,255,${state.beatPulse * 0.5})` : `rgba(255,150,100,${state.beatPulse * 0.4})`;
+        ctx.lineWidth = 2 + state.beatPulse * 3;
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height - 40);
+        ctx.lineTo(canvas.width, canvas.height - 40);
+        ctx.stroke();
+    }
 }
 
 // ============================================
 // WARRIOR (PLAYER)
 // ============================================
+
+// Update cape physics
+function updateCape(baseX, baseY, playerVelX) {
+    const cape = state.capePoints;
+    const anchorX = baseX - 8;
+    const anchorY = baseY - 35;
+
+    // Anchor point follows player
+    cape[0].x = anchorX;
+    cape[0].y = anchorY;
+
+    // Physics for trailing points
+    for (let i = 1; i < cape.length; i++) {
+        const prev = cape[i - 1];
+        const point = cape[i];
+
+        // Target position (hanging down and back)
+        const segmentLength = 12;
+        const targetX = prev.x - 6 - i * 2;
+        const targetY = prev.y + segmentLength;
+
+        // Spring physics
+        const dx = targetX - point.x;
+        const dy = targetY - point.y;
+        point.vx += dx * 0.15 - playerVelX * 0.3;
+        point.vy += dy * 0.15 + 0.2; // Gravity
+
+        // Damping
+        point.vx *= 0.85;
+        point.vy *= 0.85;
+
+        // Apply velocity
+        point.x += point.vx;
+        point.y += point.vy;
+
+        // Constrain distance from previous point
+        const currentDx = point.x - prev.x;
+        const currentDy = point.y - prev.y;
+        const dist = Math.sqrt(currentDx * currentDx + currentDy * currentDy);
+        if (dist > segmentLength) {
+            point.x = prev.x + (currentDx / dist) * segmentLength;
+            point.y = prev.y + (currentDy / dist) * segmentLength;
+        }
+    }
+}
+
+// Draw flowing cape
+function drawCape(ctx, baseX, baseY, color) {
+    const cape = state.capePoints;
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(baseX - 5, baseY - 38);
+    ctx.lineTo(baseX - 12, baseY - 32);
+
+    // Curve through cape points
+    for (let i = 1; i < cape.length; i++) {
+        ctx.lineTo(cape[i].x, cape[i].y);
+    }
+
+    // Return path
+    ctx.lineTo(cape[cape.length - 1].x + 8, cape[cape.length - 1].y - 2);
+    for (let i = cape.length - 2; i >= 1; i--) {
+        ctx.lineTo(cape[i].x + 6, cape[i].y - 3);
+    }
+    ctx.lineTo(baseX - 2, baseY - 32);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cape highlight
+    ctx.strokeStyle = `${color}88`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cape[1].x + 2, cape[1].y);
+    for (let i = 2; i < cape.length; i++) {
+        ctx.lineTo(cape[i].x + 3, cape[i].y - 1);
+    }
+    ctx.stroke();
+}
+
 export function drawWarrior() {
     const { ctx, canvas } = dom;
-    const { player, chargeLevel } = state;
+    const { player, chargeLevel, beatPulse } = state;
 
-    const x = 60;
-    const y = canvas.height - 45;
+    const baseX = 60;
+    const baseY = canvas.height - 45;
 
-    // SQUASH & STRETCH based on stance
-    let squashX = 1, squashY = 1;
+    // ====== ANIMATION CALCULATIONS ======
+
+    // Beat-synced idle bob (bounces with the music)
+    const beatBob = Math.sin(beatPulse * Math.PI) * 3;
+
+    // Breathing animation (slower, subtle)
+    const breathe = Math.sin(Date.now() / 800) * 2;
+
+    // Victory animation timer decay
+    if (player.victoryTimer > 0) {
+        player.victoryTimer -= 0.016; // ~60fps
+    }
+
+    // Damage recoil timer decay
+    if (player.damageTimer > 0) {
+        player.damageTimer -= 0.02;
+    }
+
+    // Calculate player velocity for cape physics
+    let playerVelX = 0;
     if (player.stance === 'aggressive' || player.stance === 'triple') {
-        // Stretch forward on attack
-        squashX = 1.15;
-        squashY = 0.9;
-    } else if (player.stance === 'defensive' || player.stance === 'tapthenhold') {
-        // Squash down on block/dispel
-        squashX = 1.1;
-        squashY = 0.85;
-    } else if (player.stance === 'stumble') {
-        // Wobbly on stumble
-        squashX = 0.85 + Math.sin(Date.now() / 50) * 0.1;
+        playerVelX = 5; // Moving forward
+    } else if (player.damageTimer > 0) {
+        playerVelX = -8; // Knocked back
+    } else if (player.victoryTimer > 0) {
+        playerVelX = 2; // Slight forward
+    }
+
+    // Update cape physics
+    updateCape(baseX, baseY, playerVelX);
+
+    // ====== POSITION MODIFIERS ======
+
+    let x = baseX;
+    let y = baseY;
+    let bodyLean = 0; // Rotation
+    let squashX = 1, squashY = 1;
+
+    // Apply beat bob when idle
+    if (player.stance === 'idle' && player.damageTimer <= 0) {
+        y -= beatBob + breathe;
+    }
+
+    // Damage recoil - knockback and lean
+    if (player.damageTimer > 0) {
+        const recoilProgress = player.damageTimer;
+        x -= recoilProgress * 15;
+        bodyLean = -recoilProgress * 0.3;
+        squashX = 0.9;
         squashY = 1.1;
     }
 
-    // Apply squash/stretch transform
+    // Victory pose
+    if (player.victoryTimer > 0 && player.stance === 'idle') {
+        const victoryProgress = player.victoryTimer;
+        y -= victoryProgress * 8;
+        bodyLean = victoryProgress * 0.1;
+    }
+
+    // Stance-based squash & stretch
+    if (player.stance === 'aggressive' || player.stance === 'triple') {
+        squashX = 1.15;
+        squashY = 0.9;
+        x += 8; // Lunge forward
+        bodyLean = 0.15;
+    } else if (player.stance === 'defensive' || player.stance === 'tapthenhold') {
+        squashX = 1.1;
+        squashY = 0.85;
+        y += 5; // Crouch
+        bodyLean = -0.05;
+    } else if (player.stance === 'stumble') {
+        squashX = 0.85 + Math.sin(Date.now() / 50) * 0.1;
+        squashY = 1.1;
+        x -= 5;
+        bodyLean = Math.sin(Date.now() / 80) * 0.2;
+    } else if (player.stance === 'charge' || chargeLevel > 0.3) {
+        squashY = 0.9 + chargeLevel * 0.15;
+        y += 3;
+    }
+
+    // ====== RENDERING ======
+
     ctx.save();
+
+    // Apply body lean rotation
     ctx.translate(x, y);
+    ctx.rotate(bodyLean);
     ctx.scale(squashX, squashY);
     ctx.translate(-x, -y);
 
@@ -151,104 +421,463 @@ export function drawWarrior() {
         }
     }
 
-    ctx.fillStyle = '#000000';
-
-    // Body (simple silhouette) - scale up when charging
-    const scale = 1 + chargeLevel * 0.15;
-    ctx.beginPath();
-    ctx.ellipse(x, y - 20, 12 * scale, 20 * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Head
-    ctx.beginPath();
-    ctx.arc(x, y - 48 - chargeLevel * 5, 10 * scale, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Eyes (expressive!)
-    ctx.fillStyle = player.stance === 'charge' ? '#4488ff' : '#ffffff';
-    const eyeOffsetX = player.stance === 'aggressive' ? 2 : (player.stance === 'charge' ? 1 : 0);
-    const eyeY = y - 50 - chargeLevel * 5;
-    ctx.beginPath();
-    ctx.arc(x - 3 + eyeOffsetX, eyeY, 4, 0, Math.PI * 2);
-    ctx.arc(x + 5 + eyeOffsetX, eyeY, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pupils (intense when charging)
-    ctx.fillStyle = player.stance === 'charge' ? '#ffffff' : '#000000';
-    ctx.beginPath();
-    ctx.arc(x - 2 + eyeOffsetX, eyeY, player.stance === 'charge' ? 1 : 2, 0, Math.PI * 2);
-    ctx.arc(x + 6 + eyeOffsetX, eyeY, player.stance === 'charge' ? 1 : 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Weapon/Shield based on stance
-    ctx.fillStyle = '#222222';
-    if (player.stance === 'aggressive') {
-        // Sword raised
-        ctx.save();
-        ctx.translate(x + 15, y - 30);
-        ctx.rotate(-0.5);
-        ctx.fillRect(-2, -25, 4, 30);
-        ctx.fillRect(-5, -25, 10, 5);
-        ctx.restore();
-    } else if (player.stance === 'triple') {
-        // Triple slash - sword with motion lines
-        ctx.save();
-        ctx.translate(x + 18, y - 35);
-        ctx.rotate(-0.7);
-        ctx.fillStyle = '#ff8844';
-        ctx.fillRect(-2, -25, 4, 30);
-        ctx.fillRect(-5, -25, 10, 5);
-        // Motion lines
-        ctx.strokeStyle = '#ff884488';
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 3; i++) {
-            ctx.beginPath();
-            ctx.moveTo(-10 - i * 6, -20 + i * 8);
-            ctx.lineTo(-10 - i * 6, 5 + i * 8);
-            ctx.stroke();
-        }
-        ctx.restore();
-    } else if (player.stance === 'defensive') {
-        // Shield up
+    // Victory glow
+    if (player.victoryTimer > 0.3) {
+        ctx.fillStyle = `rgba(255, 255, 100, ${(player.victoryTimer - 0.3) * 0.5})`;
         ctx.beginPath();
-        ctx.ellipse(x + 20, y - 25, 15, 20, 0, 0, Math.PI * 2);
+        ctx.arc(x, y - 30, 35, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#444444';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    } else if (player.stance === 'tapthenhold') {
-        // Magic dispel - glowing hand
-        ctx.fillStyle = '#ff44aa';
-        ctx.beginPath();
-        ctx.arc(x + 20, y - 30, 12, 0, Math.PI * 2);
-        ctx.fill();
-        // Magic glow
-        ctx.fillStyle = 'rgba(255, 68, 170, 0.4)';
-        ctx.beginPath();
-        ctx.arc(x + 20, y - 30, 20 + Math.sin(Date.now() / 50) * 3, 0, Math.PI * 2);
-        ctx.fill();
-        // Sparkles
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(x + 15 + Math.sin(Date.now() / 100) * 5, y - 35, 2, 0, Math.PI * 2);
-        ctx.arc(x + 25, y - 25 + Math.cos(Date.now() / 80) * 4, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-    } else if (player.stance === 'charge' || chargeLevel > 0.3) {
-        // Charged heavy weapon overhead
-        ctx.fillStyle = chargeLevel > 0.8 || player.stance === 'charge' ? '#4488ff' : '#222222';
-        ctx.save();
-        ctx.translate(x, y - 55 - chargeLevel * 10);
-        ctx.rotate(-0.2);
-        // Heavy sword/hammer
-        ctx.fillRect(-4, -20, 8, 35);
-        ctx.fillRect(-10, -25, 20, 10);
-        ctx.restore();
-    } else {
-        // Idle - sword down
-        ctx.fillRect(x + 10, y - 20, 4, 25);
     }
 
-    ctx.restore(); // End squash/stretch transform
+    // Fever mode aura
+    if (player.feverMode) {
+        const feverPulse = Math.sin(Date.now() / 50) * 5;
+        ctx.fillStyle = `rgba(255, 0, 255, ${0.2 + Math.sin(Date.now() / 100) * 0.1})`;
+        ctx.beginPath();
+        ctx.arc(x, y - 30, 40 + feverPulse, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ====== CAPE (behind body) ======
+    const capeColor = player.feverMode ? '#6600aa' :
+        (player.damageTimer > 0 ? '#660022' : '#4a1a2a');
+    drawCape(ctx, x, y, capeColor);
+
+    // ====== COLOR PALETTE (Castlevania-style) ======
+    const armorMain = player.feverMode ? '#8844aa' : '#5a6a7a';  // Steel gray
+    const armorLight = player.feverMode ? '#aa66cc' : '#7a8a9a'; // Armor highlight
+    const armorDark = player.feverMode ? '#663388' : '#3a4a5a';  // Armor shadow
+    const leatherColor = '#4a3a2a';  // Brown leather
+    const leatherLight = '#6a5a4a';  // Leather highlight
+    const skinColor = '#d4a574';     // Skin tone
+    const goldTrim = player.feverMode ? '#ffaa00' : '#c4a020';   // Gold accents
+
+    // ====== LEGS (armored boots) ======
+    const leftLegAngle = player.stance === 'aggressive' ? 0.3 :
+        (player.stance === 'defensive' ? -0.2 : Math.sin(Date.now() / 400) * 0.05);
+    ctx.save();
+    ctx.translate(x - 5, y);
+    ctx.rotate(leftLegAngle);
+    // Leg armor
+    ctx.fillStyle = armorDark;
+    ctx.fillRect(-4, 0, 8, 18);
+    ctx.fillStyle = armorMain;
+    ctx.fillRect(-3, 1, 5, 16);
+    // Boot
+    ctx.fillStyle = leatherColor;
+    ctx.fillRect(-5, 14, 11, 6);
+    ctx.fillStyle = leatherLight;
+    ctx.fillRect(-4, 15, 3, 4);
+    ctx.restore();
+
+    // Right leg
+    const rightLegAngle = player.stance === 'aggressive' ? -0.4 :
+        (player.stance === 'defensive' ? 0.2 : -Math.sin(Date.now() / 400) * 0.05);
+    ctx.save();
+    ctx.translate(x + 5, y);
+    ctx.rotate(rightLegAngle);
+    ctx.fillStyle = armorDark;
+    ctx.fillRect(-4, 0, 8, 18);
+    ctx.fillStyle = armorMain;
+    ctx.fillRect(-3, 1, 5, 16);
+    // Boot
+    ctx.fillStyle = leatherColor;
+    ctx.fillRect(-4, 14, 11, 6);
+    ctx.fillStyle = leatherLight;
+    ctx.fillRect(-3, 15, 3, 4);
+    ctx.restore();
+
+    // ====== TORSO (armored breastplate) ======
+    const torsoScale = 1 + chargeLevel * 0.1;
+
+    // Main armor body
+    ctx.fillStyle = armorDark;
+    ctx.beginPath();
+    ctx.moveTo(x - 11 * torsoScale, y);
+    ctx.lineTo(x - 13 * torsoScale, y - 25);
+    ctx.lineTo(x - 9 * torsoScale, y - 36);
+    ctx.lineTo(x + 9 * torsoScale, y - 36);
+    ctx.lineTo(x + 13 * torsoScale, y - 25);
+    ctx.lineTo(x + 11 * torsoScale, y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Breastplate highlight
+    ctx.fillStyle = armorMain;
+    ctx.beginPath();
+    ctx.moveTo(x - 8 * torsoScale, y - 2);
+    ctx.lineTo(x - 10 * torsoScale, y - 24);
+    ctx.lineTo(x - 6 * torsoScale, y - 33);
+    ctx.lineTo(x + 6 * torsoScale, y - 33);
+    ctx.lineTo(x + 10 * torsoScale, y - 24);
+    ctx.lineTo(x + 8 * torsoScale, y - 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Center plate detail
+    ctx.fillStyle = armorLight;
+    ctx.beginPath();
+    ctx.moveTo(x - 3, y - 5);
+    ctx.lineTo(x - 4, y - 20);
+    ctx.lineTo(x, y - 28);
+    ctx.lineTo(x + 4, y - 20);
+    ctx.lineTo(x + 3, y - 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Gold trim on armor
+    ctx.strokeStyle = goldTrim;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y - 33);
+    ctx.lineTo(x + 8, y - 33);
+    ctx.stroke();
+
+    // ====== ARMS ======
+    // Back arm (left, behind body)
+    ctx.save();
+    const backArmAngle = player.stance === 'charge' ? -2.5 :
+        (player.stance === 'aggressive' || player.stance === 'triple' ? -0.5 : -0.3);
+    ctx.translate(x - 10, y - 30);
+    ctx.rotate(backArmAngle);
+    // Shoulder pauldron
+    ctx.fillStyle = armorDark;
+    ctx.beginPath();
+    ctx.arc(0, 2, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = armorMain;
+    ctx.beginPath();
+    ctx.arc(-1, 1, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // Arm
+    ctx.fillStyle = armorDark;
+    ctx.fillRect(-4, 4, 8, 18);
+    ctx.fillStyle = armorMain;
+    ctx.fillRect(-3, 5, 5, 16);
+    ctx.restore();
+
+    // Front arm (right, holds weapon)
+    const frontArmAngle = player.stance === 'aggressive' || player.stance === 'triple' ? -1.2 :
+        (player.stance === 'defensive' || player.stance === 'tapthenhold' ? 0.3 :
+        (player.stance === 'charge' ? -2.8 :
+        (player.victoryTimer > 0.3 ? -2.5 : 0.5)));
+    ctx.save();
+    ctx.translate(x + 10, y - 30);
+    ctx.rotate(frontArmAngle);
+    // Shoulder pauldron
+    ctx.fillStyle = armorDark;
+    ctx.beginPath();
+    ctx.arc(0, 2, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = armorMain;
+    ctx.beginPath();
+    ctx.arc(1, 1, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = goldTrim;
+    ctx.beginPath();
+    ctx.arc(1, 1, 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Arm armor
+    ctx.fillStyle = armorDark;
+    ctx.fillRect(-4, 4, 8, 20);
+    ctx.fillStyle = armorMain;
+    ctx.fillRect(-3, 5, 5, 18);
+    // Gauntlet
+    ctx.fillStyle = armorLight;
+    ctx.fillRect(-3, 20, 6, 4);
+
+    // ====== SWORD (consistent style across all stances) ======
+    const swordGlow = player.stance === 'charge' || (player.stance === 'triple' && player.feverMode);
+    const swordColor = swordGlow ? '#88ccff' : '#c0c0c0';  // Silver blade
+    const hiltColor = '#8b4513';   // Brown leather grip
+    const guardColor = goldTrim;   // Gold crossguard
+
+    // Blade
+    ctx.fillStyle = swordColor;
+    ctx.beginPath();
+    ctx.moveTo(-1, 22);
+    ctx.lineTo(-2, 24);
+    ctx.lineTo(-2, 50);
+    ctx.lineTo(0, 55);  // Point
+    ctx.lineTo(2, 50);
+    ctx.lineTo(2, 24);
+    ctx.lineTo(1, 22);
+    ctx.closePath();
+    ctx.fill();
+
+    // Blade edge highlight
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fillRect(0, 24, 1, 26);
+
+    // Crossguard
+    ctx.fillStyle = guardColor;
+    ctx.fillRect(-7, 18, 14, 4);
+
+    // Hilt/grip
+    ctx.fillStyle = hiltColor;
+    ctx.fillRect(-2, 14, 4, 6);
+
+    // Pommel
+    ctx.fillStyle = guardColor;
+    ctx.beginPath();
+    ctx.arc(0, 13, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sword glow effect for charge/triple
+    if (swordGlow) {
+        ctx.strokeStyle = player.stance === 'triple' ? '#ff8844' : '#88ccff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(0, 24);
+        ctx.lineTo(0, 54);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    // Motion trails for triple attack
+    if (player.stance === 'triple') {
+        ctx.strokeStyle = '#ff884466';
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-8 - i * 6, 25 + i * 5);
+            ctx.lineTo(-8 - i * 6, 50 + i * 5);
+            ctx.stroke();
+        }
+    }
+
+    ctx.restore(); // End front arm transform
+
+    // ====== SHIELD (defensive stance) ======
+    if (player.stance === 'defensive' || player.stance === 'tapthenhold') {
+        const shieldMain = player.stance === 'tapthenhold' ? '#aa3377' : '#3a5a8a';
+        const shieldLight = player.stance === 'tapthenhold' ? '#cc5599' : '#5a7aaa';
+        const shieldDark = player.stance === 'tapthenhold' ? '#882255' : '#2a4a6a';
+
+        // Shield body
+        ctx.fillStyle = shieldDark;
+        ctx.beginPath();
+        ctx.ellipse(x + 18, y - 20, 15, 19, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = shieldMain;
+        ctx.beginPath();
+        ctx.ellipse(x + 17, y - 21, 12, 16, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Shield boss (center)
+        ctx.fillStyle = goldTrim;
+        ctx.beginPath();
+        ctx.arc(x + 17, y - 21, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = shieldLight;
+        ctx.beginPath();
+        ctx.arc(x + 16, y - 22, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Shield rim
+        ctx.strokeStyle = goldTrim;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(x + 17, y - 21, 13, 17, 0.2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Magic glow for tapthenhold
+        if (player.stance === 'tapthenhold') {
+            ctx.fillStyle = `rgba(255, 68, 170, ${0.2 + Math.sin(Date.now() / 50) * 0.15})`;
+            ctx.beginPath();
+            ctx.arc(x + 17, y - 21, 22 + Math.sin(Date.now() / 50) * 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // ====== HEAD/HELMET (Great Helm style) ======
+    const headY = y - 48 - chargeLevel * 5;
+
+    // Helmet main shape (flat-topped great helm)
+    ctx.fillStyle = armorDark;
+    ctx.beginPath();
+    ctx.moveTo(x - 11, headY + 8);   // Bottom left
+    ctx.lineTo(x - 12, headY - 2);   // Left side
+    ctx.lineTo(x - 10, headY - 10);  // Top left curve
+    ctx.lineTo(x - 4, headY - 14);   // Top left
+    ctx.lineTo(x + 4, headY - 14);   // Top right
+    ctx.lineTo(x + 10, headY - 10);  // Top right curve
+    ctx.lineTo(x + 12, headY - 2);   // Right side
+    ctx.lineTo(x + 11, headY + 8);   // Bottom right
+    ctx.closePath();
+    ctx.fill();
+
+    // Helmet front plate (lighter)
+    ctx.fillStyle = armorMain;
+    ctx.beginPath();
+    ctx.moveTo(x - 9, headY + 6);
+    ctx.lineTo(x - 10, headY - 1);
+    ctx.lineTo(x - 8, headY - 9);
+    ctx.lineTo(x - 3, headY - 12);
+    ctx.lineTo(x + 3, headY - 12);
+    ctx.lineTo(x + 8, headY - 9);
+    ctx.lineTo(x + 10, headY - 1);
+    ctx.lineTo(x + 9, headY + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // Center ridge (nose guard)
+    ctx.fillStyle = armorLight;
+    ctx.beginPath();
+    ctx.moveTo(x - 1, headY - 12);
+    ctx.lineTo(x + 1, headY - 12);
+    ctx.lineTo(x + 2, headY + 5);
+    ctx.lineTo(x - 2, headY + 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Visor slit (horizontal eye slot)
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(x - 9, headY - 3, 18, 4);
+
+    // Breathing holes (left side)
+    ctx.fillStyle = '#1a1a1a';
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(x - 7, headY + 2 + i * 3, 1, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // Breathing holes (right side)
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(x + 7, headY + 2 + i * 3, 1, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Gold trim around visor
+    ctx.strokeStyle = goldTrim;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, headY - 4);
+    ctx.lineTo(x + 10, headY - 4);
+    ctx.moveTo(x - 10, headY + 2);
+    ctx.lineTo(x + 10, headY + 2);
+    ctx.stroke();
+
+    // Chin guard
+    ctx.fillStyle = armorDark;
+    ctx.beginPath();
+    ctx.moveTo(x - 6, headY + 6);
+    ctx.lineTo(x - 4, headY + 12);
+    ctx.lineTo(x + 4, headY + 12);
+    ctx.lineTo(x + 6, headY + 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // ====== NOBLE PLUME ======
+    const plumeWave = Math.sin(Date.now() / 150) * 3;
+    const plumeColor = player.feverMode ? '#ff44ff' : '#aa2222';
+    const plumeLight = player.feverMode ? '#ff88ff' : '#cc4444';
+    const plumeDark = player.feverMode ? '#aa00aa' : '#771111';
+
+    // Plume base (gold mount)
+    ctx.fillStyle = goldTrim;
+    ctx.beginPath();
+    ctx.ellipse(x, headY - 13, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Back feather
+    ctx.fillStyle = plumeDark;
+    ctx.beginPath();
+    ctx.moveTo(x + 2, headY - 14);
+    ctx.quadraticCurveTo(x + 8 + plumeWave * 0.5, headY - 30, x + 5 + plumeWave, headY - 40);
+    ctx.quadraticCurveTo(x + 3 + plumeWave * 0.8, headY - 44, x - 2 + plumeWave * 0.6, headY - 42);
+    ctx.quadraticCurveTo(x + 2, headY - 32, x + 2, headY - 14);
+    ctx.fill();
+
+    // Main feather
+    ctx.fillStyle = plumeColor;
+    ctx.beginPath();
+    ctx.moveTo(x, headY - 15);
+    ctx.quadraticCurveTo(x + 6 + plumeWave * 0.7, headY - 28, x + 4 + plumeWave, headY - 38);
+    ctx.quadraticCurveTo(x + 2 + plumeWave, headY - 46, x - 4 + plumeWave * 0.8, headY - 44);
+    ctx.quadraticCurveTo(x - 6 + plumeWave * 0.5, headY - 40, x - 5 + plumeWave * 0.3, headY - 34);
+    ctx.quadraticCurveTo(x - 2, headY - 24, x, headY - 15);
+    ctx.fill();
+
+    // Highlight feather
+    ctx.fillStyle = plumeLight;
+    ctx.beginPath();
+    ctx.moveTo(x - 1, headY - 16);
+    ctx.quadraticCurveTo(x + 3 + plumeWave * 0.6, headY - 27, x + 2 + plumeWave * 0.8, headY - 35);
+    ctx.quadraticCurveTo(x + plumeWave * 0.7, headY - 40, x - 3 + plumeWave * 0.5, headY - 38);
+    ctx.quadraticCurveTo(x - 4 + plumeWave * 0.3, headY - 32, x - 1, headY - 16);
+    ctx.fill();
+
+    // Feather spine
+    ctx.strokeStyle = plumeDark;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, headY - 16);
+    ctx.quadraticCurveTo(x + 4 + plumeWave * 0.6, headY - 28, x + 1 + plumeWave * 0.7, headY - 38);
+    ctx.stroke();
+
+    // ====== EYES (glowing through visor) ======
+    const eyeGlow = player.stance === 'charge' ? '#4488ff' :
+        (player.feverMode ? '#ff00ff' :
+        (player.damageTimer > 0 ? '#ff4444' : '#ffcc44'));
+
+    let eyeOffsetX = 0;
+    if (player.stance === 'aggressive' || player.stance === 'triple') {
+        eyeOffsetX = 2;
+    } else if (player.damageTimer > 0) {
+        eyeOffsetX = -2;
+    }
+
+    const eyeY = headY - 1;
+
+    if (player.damageTimer > 0.5) {
+        // Damage - flickering red eyes
+        const flicker = Math.sin(Date.now() / 30) > 0 ? 1 : 0.5;
+        ctx.fillStyle = `rgba(255, 68, 68, ${flicker})`;
+        ctx.fillRect(x - 6 + eyeOffsetX, eyeY - 1, 4, 2);
+        ctx.fillRect(x + 2 + eyeOffsetX, eyeY - 1, 4, 2);
+    } else {
+        // Normal glowing eyes in visor slit
+        ctx.fillStyle = eyeGlow;
+        ctx.shadowColor = eyeGlow;
+        ctx.shadowBlur = player.feverMode ? 8 : 4;
+
+        // Left eye
+        ctx.fillRect(x - 6 + eyeOffsetX, eyeY - 1, 4, 2);
+        // Right eye
+        ctx.fillRect(x + 2 + eyeOffsetX, eyeY - 1, 4, 2);
+
+        ctx.shadowBlur = 0;
+    }
+
+    ctx.restore(); // End body transform
+
+    // ====== WEAPON TRAIL (outside transform for screen-space effect) ======
+    if (player.stance === 'aggressive' || player.stance === 'triple') {
+        const trailColor = player.stance === 'triple' ? '#ff884466' : '#ffffff33';
+        ctx.strokeStyle = trailColor;
+        ctx.lineWidth = player.stance === 'triple' ? 4 : 2;
+        ctx.lineCap = 'round';
+
+        // Arc trail
+        ctx.beginPath();
+        ctx.arc(x + 15, y - 30, 40, -0.5, 1.2);
+        ctx.stroke();
+
+        if (player.stance === 'triple') {
+            // Multiple trail arcs
+            ctx.strokeStyle = '#ff884433';
+            ctx.beginPath();
+            ctx.arc(x + 15, y - 30, 45, -0.3, 1.0);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x + 15, y - 30, 35, -0.7, 1.4);
+            ctx.stroke();
+        }
+    }
 }
 
 // ============================================
@@ -260,20 +889,53 @@ export function drawEnemy() {
 
     if (!enemy) return;
 
-    const x = enemy.x;
-    const y = enemy.y;
+    // Base position
+    let x = enemy.x;
+    let y = enemy.y;
 
-    // Glow effect behind enemy (colored by type)
+    // ANIMATION: Idle bobbing (gentle sine wave)
+    const bobSpeed = enemy.type === 'giant' ? 800 : (enemy.type === 'armored' ? 1200 : 600);
+    const bobAmount = enemy.type === 'giant' ? 2 : 3;
+    const idleBob = Math.sin(Date.now() / bobSpeed) * bobAmount;
+    y += idleBob;
+
+    // ANIMATION: Attack windup on phase 2 (clash)
+    // Lean forward and raise weapon before attacking
+    let leanAngle = 0;
+    let weaponRaise = 0;
+    if (state.phase === 2 && enemy.alive) {
+        // Quick lunge forward
+        const attackProgress = Math.min(1, (Date.now() % 500) / 200);
+        x -= attackProgress * 15; // Lunge toward player
+        leanAngle = attackProgress * 0.2; // Lean forward
+        weaponRaise = attackProgress * 0.5; // Raise weapon
+    }
+
+    // ANIMATION: Staggered sway
+    if (enemy.staggered) {
+        const staggerSway = Math.sin(Date.now() / 100) * 5;
+        x += staggerSway;
+    }
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(leanAngle);
+    ctx.translate(-x, -y);
+
+    // Glow effect behind enemy (colored by type, pulses on attack)
     const glowColors = {
-        swordsman: 'rgba(255,68,68,0.3)',
-        archer: 'rgba(68,255,68,0.3)',
-        armored: 'rgba(68,136,255,0.4)',
-        giant: 'rgba(255,136,68,0.4)',
-        mage: 'rgba(255,68,170,0.4)'
+        swordsman: [255, 68, 68],
+        archer: [68, 255, 68],
+        armored: [68, 136, 255],
+        giant: [255, 136, 68],
+        mage: [255, 68, 170]
     };
-    ctx.fillStyle = glowColors[enemy.type] || 'rgba(255,255,255,0.3)';
+    const glowRGB = glowColors[enemy.type] || [255, 255, 255];
+    const glowAlpha = state.phase === 2 ? 0.5 + Math.sin(Date.now() / 50) * 0.2 : 0.3;
+    const glowSize = state.phase === 2 ? 40 + Math.sin(Date.now() / 80) * 5 : 35;
+    ctx.fillStyle = `rgba(${glowRGB[0]},${glowRGB[1]},${glowRGB[2]},${glowAlpha})`;
     ctx.beginPath();
-    ctx.arc(x, y - 25, 35, 0, Math.PI * 2);
+    ctx.arc(x, y - 25, glowSize, 0, Math.PI * 2);
     ctx.fill();
 
     // Body silhouette (bigger)
@@ -419,6 +1081,8 @@ export function drawEnemy() {
         ctx.fillText('DIZZY', x, y - 70);
         ctx.textAlign = 'left';
     }
+
+    ctx.restore(); // Restore from lean animation
 }
 
 // ============================================
@@ -448,10 +1112,22 @@ export function drawUI() {
     ctx.textAlign = 'right';
     ctx.fillText(`${player.score}`, canvas.width - 10, 25);
 
-    // BPM indicator (pulses with beat)
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + beatPulse * 0.4})`;
-    ctx.font = '10px monospace';
-    ctx.fillText(`♪${Math.round(bpm)}`, 90, 20);
+    // BPM indicator (pulses with beat, color-coded by speed)
+    const bpmIntensity = Math.min(1, (bpm - 60) / 50);
+    const bpmRGB = bpm >= 100 ? '255, 68, 68' : (bpm >= 80 ? '255, 170, 0' : '68, 255, 136');
+    ctx.fillStyle = `rgba(${bpmRGB}, ${0.5 + beatPulse * 0.5})`;
+    ctx.font = `bold ${10 + bpmIntensity * 4}px monospace`;
+    ctx.fillText(`♪${Math.round(bpm)}`, 90, 22);
+
+    // Speed flame effect at high BPM
+    if (bpm >= 90) {
+        ctx.fillStyle = `rgba(255, ${150 - bpmIntensity * 100}, 0, ${0.2 + Math.sin(Date.now() / 50) * 0.15})`;
+        ctx.beginPath();
+        ctx.moveTo(85, 25);
+        ctx.quadraticCurveTo(100 + Math.sin(Date.now() / 100) * 3, 5, 115, 25);
+        ctx.quadraticCurveTo(100, 30, 85, 25);
+        ctx.fill();
+    }
 
     // Combo (scales with combo count!)
     if (player.combo > 1) {
@@ -520,23 +1196,66 @@ export function drawUI() {
     const trackY = canvas.height - 35;
     const trackHeight = 30;
 
-    // Track background
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    // Track background with subtle gradient
+    const trackGradient = ctx.createLinearGradient(0, trackY - trackHeight/2, 0, trackY + trackHeight/2);
+    trackGradient.addColorStop(0, 'rgba(0,0,0,0.7)');
+    trackGradient.addColorStop(0.5, 'rgba(20,20,40,0.7)');
+    trackGradient.addColorStop(1, 'rgba(0,0,0,0.7)');
+    ctx.fillStyle = trackGradient;
     ctx.fillRect(0, trackY - trackHeight/2, canvas.width, trackHeight);
 
-    // Hit zone (where you should press)
+    // Speed lines on track (more lines at higher BPM)
+    const speedIntensity = Math.min(1, (bpm - 60) / 50);
+    if (speedIntensity > 0) {
+        ctx.strokeStyle = `rgba(100, 150, 255, ${speedIntensity * 0.3})`;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 5; i++) {
+            // Ensure divisor never goes below 5 to prevent too-fast animation
+            const lineSpeed = Math.max(5, 10 - speedIntensity * 5);
+            const lineOffset = (Date.now() / lineSpeed + i * 80) % canvas.width;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - lineOffset, trackY - trackHeight/2 + 5);
+            ctx.lineTo(canvas.width - lineOffset - 30, trackY + trackHeight/2 - 5);
+            ctx.stroke();
+        }
+    }
+
+    // Hit zone (where you should press) - dynamic based on enemy/BPM
     const hitZoneWidth = 40;
-    ctx.fillStyle = phase === 1 ? 'rgba(255,255,0,0.4)' : 'rgba(255,255,255,0.15)';
+    const hitZonePulse = Math.sin(Date.now() / 100) * 3;
+
+    // Determine hit zone color based on current enemy type
+    let hitZoneColor = '#ffffff';
+    if (enemy && enemy.alive) {
+        const enemyColors = {
+            swordsman: '#e63946',
+            archer: '#2a9d8f',
+            armored: '#457b9d',
+            giant: '#e76f51',
+            mage: '#9d4edd'
+        };
+        hitZoneColor = enemyColors[enemy.type] || '#ffffff';
+    }
+
+    // Outer glow when active
+    if (phase === 1) {
+        ctx.fillStyle = `${hitZoneColor}33`;
+        ctx.fillRect(hitZoneX - hitZoneWidth/2 - 8, trackY - trackHeight/2 - 4, hitZoneWidth + 16, trackHeight + 8);
+    }
+
+    // Hit zone fill
+    const hitZoneFillAlpha = phase === 1 ? 0.5 + Math.sin(Date.now() / 50) * 0.2 : 0.2;
+    ctx.fillStyle = phase === 1 ? `${hitZoneColor}${Math.floor(hitZoneFillAlpha * 255).toString(16).padStart(2, '0')}` : 'rgba(255,255,255,0.15)';
     ctx.fillRect(hitZoneX - hitZoneWidth/2, trackY - trackHeight/2, hitZoneWidth, trackHeight);
 
-    // Hit zone border
-    ctx.strokeStyle = phase === 1 ? '#ffff00' : '#666666';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(hitZoneX - hitZoneWidth/2, trackY - trackHeight/2, hitZoneWidth, trackHeight);
+    // Hit zone border (pulses with beat)
+    ctx.strokeStyle = phase === 1 ? hitZoneColor : '#666666';
+    ctx.lineWidth = phase === 1 ? 3 + beatPulse * 2 : 2;
+    ctx.strokeRect(hitZoneX - hitZoneWidth/2 - (phase === 1 ? hitZonePulse/2 : 0), trackY - trackHeight/2, hitZoneWidth + (phase === 1 ? hitZonePulse : 0), trackHeight);
 
     // "HIT" label
-    ctx.fillStyle = phase === 1 ? '#ffff00' : '#666666';
-    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = phase === 1 ? hitZoneColor : '#666666';
+    ctx.font = phase === 1 ? 'bold 12px monospace' : 'bold 10px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('HIT', hitZoneX, trackY - trackHeight/2 - 5);
 
@@ -975,6 +1694,65 @@ export function drawEffects() {
 
         return t.alpha > 0;
     });
+
+    // Update and draw death ghosts (dying enemies)
+    state.deathGhosts = state.deathGhosts.filter(ghost => {
+        ctx.save();
+        ctx.globalAlpha = ghost.life * 0.8;
+
+        // Apply rotation and scale
+        ctx.translate(ghost.x, ghost.y);
+        ctx.rotate(ghost.rotation);
+        ctx.scale(ghost.scale, ghost.scale);
+        ctx.translate(-ghost.x, -ghost.y);
+
+        // Ghost glow (fading)
+        ctx.fillStyle = ghost.color;
+        ctx.beginPath();
+        ctx.arc(ghost.x, ghost.y - 20, 30 * ghost.life, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ghost body silhouette
+        ctx.fillStyle = `rgba(0, 0, 0, ${ghost.life * 0.6})`;
+        ctx.beginPath();
+        ctx.ellipse(ghost.x, ghost.y - 15, 12, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ghost head
+        ctx.beginPath();
+        ctx.arc(ghost.x, ghost.y - 42, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        // X eyes (dead)
+        ctx.strokeStyle = ghost.color;
+        ctx.lineWidth = 2;
+        // Left eye X
+        ctx.beginPath();
+        ctx.moveTo(ghost.x - 7, ghost.y - 46);
+        ctx.lineTo(ghost.x - 3, ghost.y - 42);
+        ctx.moveTo(ghost.x - 7, ghost.y - 42);
+        ctx.lineTo(ghost.x - 3, ghost.y - 46);
+        ctx.stroke();
+        // Right eye X
+        ctx.beginPath();
+        ctx.moveTo(ghost.x + 3, ghost.y - 46);
+        ctx.lineTo(ghost.x + 7, ghost.y - 42);
+        ctx.moveTo(ghost.x + 3, ghost.y - 42);
+        ctx.lineTo(ghost.x + 7, ghost.y - 46);
+        ctx.stroke();
+
+        ctx.restore();
+
+        // Update physics
+        ghost.x += ghost.vx;
+        ghost.y += ghost.vy;
+        ghost.vy += 0.15; // Gentle gravity
+        ghost.rotation += ghost.rotationSpeed;
+        ghost.scale = Math.max(0.3, ghost.scale - 0.015);
+        ghost.life -= 0.02;
+
+        return ghost.life > 0;
+    });
 }
 
 // ============================================
@@ -1018,7 +1796,7 @@ export function drawCRT() {
 // ============================================
 export function drawGameOver() {
     const { ctx, canvas } = dom;
-    const { player, highScore } = state;
+    const { player, highScore, maxBpmReached } = state;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1026,27 +1804,33 @@ export function drawGameOver() {
     ctx.fillStyle = '#ff4444';
     ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 40);
+    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 50);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px monospace';
-    ctx.fillText(`Score: ${player.score}`, canvas.width/2, canvas.height/2);
+    ctx.fillText(`Score: ${player.score}`, canvas.width/2, canvas.height/2 - 15);
+
+    // Max BPM stat
+    const bpmColor = maxBpmReached >= 100 ? '#ff4444' : (maxBpmReached >= 80 ? '#ffaa00' : '#44ff88');
+    ctx.fillStyle = bpmColor;
+    ctx.font = '12px monospace';
+    ctx.fillText(`Max Tempo: ♪${Math.round(maxBpmReached)}`, canvas.width/2, canvas.height/2 + 8);
 
     // High score
     const isNewHighScore = player.score > highScore;
     if (isNewHighScore) {
         ctx.fillStyle = '#ffff00';
         ctx.font = 'bold 14px monospace';
-        ctx.fillText('NEW HIGH SCORE!', canvas.width/2, canvas.height/2 + 25);
+        ctx.fillText('NEW HIGH SCORE!', canvas.width/2, canvas.height/2 + 32);
     } else {
         ctx.fillStyle = '#888888';
         ctx.font = '12px monospace';
-        ctx.fillText(`Best: ${highScore}`, canvas.width/2, canvas.height/2 + 25);
+        ctx.fillText(`Best: ${highScore}`, canvas.width/2, canvas.height/2 + 32);
     }
 
     ctx.fillStyle = '#666666';
     ctx.font = '12px monospace';
-    ctx.fillText('Tap to restart', canvas.width/2, canvas.height/2 + 55);
+    ctx.fillText('Tap to restart', canvas.width/2, canvas.height/2 + 60);
 
     ctx.textAlign = 'left';
 }

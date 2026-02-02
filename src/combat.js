@@ -5,7 +5,8 @@ import {
     ENEMY_TYPES, KILL_TEXTS, CRIT_TEXTS, OVERKILL_TEXTS, DAMAGE_TEXTS,
     ARMORED_INTRO_SCORE, ARMORED_GUARANTEE_BAR,
     GIANT_INTRO_SCORE, GIANT_INTRO_BAR,
-    MAGE_INTRO_SCORE, MAGE_INTRO_BAR
+    MAGE_INTRO_SCORE, MAGE_INTRO_BAR,
+    BPM_PER_KILL, BPM_DAMAGE_PENALTY, MAX_BPM, STARTING_BPM
 } from './constants.js';
 import { state, dom } from './state.js';
 import { playSFX, playGameOverJingle, playCrash } from './audio.js';
@@ -101,6 +102,51 @@ function selectWithVariety(types) {
 }
 
 // ============================================
+// DEATH GHOST SPAWNING
+// ============================================
+function spawnDeathGhost(enemy) {
+    state.deathGhosts.push({
+        x: enemy.x,
+        y: enemy.y,
+        type: enemy.type,
+        color: enemy.color,
+        life: 1.0,
+        vy: -2, // Initial upward pop
+        vx: (Math.random() - 0.5) * 3,
+        rotation: 0,
+        rotationSpeed: (Math.random() - 0.5) * 0.3,
+        scale: 1.0
+    });
+}
+
+// ============================================
+// BPM ADJUSTMENT
+// ============================================
+function adjustBPM(delta) {
+    const oldBPM = state.bpm;
+    state.bpm = Math.max(STARTING_BPM, Math.min(MAX_BPM, state.bpm + delta));
+    state.beatInterval = 60 / state.bpm;
+
+    // Track max BPM reached
+    if (state.bpm > state.maxBpmReached) {
+        state.maxBpmReached = state.bpm;
+    }
+
+    // Visual feedback at tempo milestones
+    if (delta > 0 && state.bpm !== oldBPM) {
+        // Show "FASTER!" every 10 BPM
+        if (Math.floor(state.bpm / 10) > Math.floor(oldBPM / 10)) {
+            showBigPrompt('FASTER!', '#ff8800');
+        }
+    } else if (delta < 0 && state.bpm !== oldBPM) {
+        // Visual cue for slowdown (recovery)
+        showText('tempo ↓', dom.canvas.width / 2, 80, '#66aaff');
+    }
+
+    return state.bpm !== oldBPM;
+}
+
+// ============================================
 // COMBAT RESOLUTION
 // ============================================
 export function resolveClash() {
@@ -119,7 +165,7 @@ export function resolveClash() {
         if (roll < 0.2) {
             // GRAZE! Lucky dodge - celebrate it!
             state.flashColor = '#ffff00';
-            state.flashAlpha = 0.6;
+            state.flashAlpha = 0.1;
             state.screenShake = 5;
             state.hitStop = 3;
             showBigPrompt('GRAZE!', '#ffff00');
@@ -142,7 +188,10 @@ export function resolveClash() {
     } else if (correct) {
         // Correct stance - KILL with crit chance
         enemy.alive = false;
+        spawnDeathGhost(enemy);
+        adjustBPM(BPM_PER_KILL); // Speed up the rhythm!
         player.combo++;
+        player.victoryTimer = 0.8; // Trigger victory animation
 
         // Fever mode = guaranteed crits!
         const feverBonus = player.feverMode ? 0.3 : 0; // Boost crit chance
@@ -154,7 +203,7 @@ export function resolveClash() {
             state.hitStop = 12; // FREEZE FRAME!
             state.chromaOffset = 8; // Chromatic aberration
             state.flashColor = '#4488ff';
-            state.flashAlpha = 1;
+            state.flashAlpha = 0.15;
             showText('SMASH!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#4488ff');
             playSFX('smash');
             playCrash(); // Big crash cymbal!
@@ -177,7 +226,7 @@ export function resolveClash() {
             state.hitStop = 8;
             state.chromaOffset = 5;
             state.flashColor = '#ff8844';
-            state.flashAlpha = 0.8;
+            state.flashAlpha = 0.12;
             showText('COMBO HIT!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#ff8844');
             playSFX('crit');
             spawnParticles(enemy.x, enemy.y, 20, enemy.color);
@@ -188,7 +237,7 @@ export function resolveClash() {
             state.hitStop = 8;
             state.chromaOffset = 4;
             state.flashColor = '#ff44aa';
-            state.flashAlpha = 0.8;
+            state.flashAlpha = 0.12;
             showText('DISPEL!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#ff44aa');
             playSFX('crit');
             spawnParticles(enemy.x, enemy.y, 18, enemy.color);
@@ -199,7 +248,7 @@ export function resolveClash() {
             state.hitStop = 10; // FREEZE FRAME!
             state.chromaOffset = 6;
             state.flashColor = '#ff00ff';
-            state.flashAlpha = 1;
+            state.flashAlpha = 0.15;
             const killText = OVERKILL_TEXTS[Math.floor(Math.random() * OVERKILL_TEXTS.length)];
             showText(killText, dom.canvas.width/2, dom.canvas.height/2 - 30, '#ff00ff');
             playSFX('crit');
@@ -212,7 +261,7 @@ export function resolveClash() {
             state.hitStop = 6; // Small freeze
             state.chromaOffset = 3;
             state.flashColor = player.feverMode ? '#ff00ff' : '#ffff00';
-            state.flashAlpha = 0.5;
+            state.flashAlpha = 0.1;
             const critText = player.feverMode ? 'FEVER CRIT!' : CRIT_TEXTS[Math.floor(Math.random() * CRIT_TEXTS.length)];
             showText(critText, dom.canvas.width/2, dom.canvas.height/2 - 30, player.feverMode ? '#ff00ff' : '#ffff00');
             playSFX('crit');
@@ -233,7 +282,10 @@ export function resolveClash() {
         if (roll < 0.1) {
             // Counter!
             enemy.alive = false;
+            spawnDeathGhost(enemy);
+            adjustBPM(BPM_PER_KILL); // Speed up the rhythm!
             player.combo++;
+            player.victoryTimer = 0.8; // Victory animation
             player.score += 150;
             showText('COUNTER!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#00ffff');
             playSFX('crit');
@@ -250,7 +302,10 @@ export function resolveClash() {
     } else if (stance === 'charge' && enemy.type !== 'armored') {
         // Charge attack overkill on non-armored (but wastes charge)
         enemy.alive = false;
+        spawnDeathGhost(enemy);
+        adjustBPM(BPM_PER_KILL); // Speed up the rhythm!
         player.combo++;
+        player.victoryTimer = 0.8; // Victory animation
         player.score += 150;
         state.screenShake = 12;
         showText('OVERKILL!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#4488ff');
@@ -261,7 +316,7 @@ export function resolveClash() {
         if (roll < 0.2) {
             // GRAZE! Lucky dodge!
             state.flashColor = '#ffff00';
-            state.flashAlpha = 0.6;
+            state.flashAlpha = 0.1;
             state.screenShake = 5;
             state.hitStop = 3;
             showBigPrompt('LUCKY!', '#ffff00');
@@ -290,13 +345,15 @@ export function takeDamage() {
     player.lives--;
     player.combo = 0;
     player.feverMode = false; // End fever mode on damage
+    player.damageTimer = 1.0; // Trigger damage recoil animation
+    adjustBPM(BPM_DAMAGE_PENALTY); // Slow down for recovery
 
     // JUICE: Big impact!
     state.screenShake = 15;
     state.hitStop = 8;
     state.chromaOffset = 5;
     state.flashColor = '#ff0000';
-    state.flashAlpha = 1;
+    state.flashAlpha = 0.2;
     playSFX('damage');
 
     // Show damage text
