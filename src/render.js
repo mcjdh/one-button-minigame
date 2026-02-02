@@ -46,6 +46,7 @@ const ZONES = [
         mountains: '#0a0505',
         ground: '#0f0808',
         cloudColor: 'rgba(255,200,150,0.4)',
+        bgType: 'plains', // Rolling hills with distant castle
         // Zone-specific accent colors for effects
         accent: '#ffaa44',        // Primary accent
         accentAlt: '#ffdd88',     // Secondary accent
@@ -62,6 +63,7 @@ const ZONES = [
         mountains: '#2a0a0a',
         ground: '#1a0505',
         cloudColor: 'rgba(200,100,100,0.3)',
+        bgType: 'wastes', // Jagged rocks and skull formations
         accent: '#ff2222',
         accentAlt: '#ff6666',
         killParticle: '#cc0000',
@@ -77,6 +79,7 @@ const ZONES = [
         mountains: '#0a1a05',
         ground: '#051a05',
         cloudColor: 'rgba(100,200,100,0.3)',
+        bgType: 'swamp', // Dead trees and bubbling pools
         accent: '#44ff44',
         accentAlt: '#88ff88',
         killParticle: '#66ff22',
@@ -92,6 +95,7 @@ const ZONES = [
         mountains: '#2a4a5a',
         ground: '#1a2a3a',
         cloudColor: 'rgba(200,230,255,0.5)',
+        bgType: 'ice', // Sharp ice spikes and glaciers
         accent: '#88ddff',
         accentAlt: '#ffffff',
         killParticle: '#aaeeff',
@@ -107,6 +111,7 @@ const ZONES = [
         mountains: '#1a1a1a',
         ground: '#0f0f0f',
         cloudColor: 'rgba(100,100,100,0.4)',
+        bgType: 'graveyard', // Tombstones and dead trees
         accent: '#aaaaaa',
         accentAlt: '#dddddd',
         killParticle: '#888888',
@@ -122,6 +127,7 @@ const ZONES = [
         mountains: '#2a0a00',
         ground: '#1a0500',
         cloudColor: 'rgba(255,150,50,0.4)',
+        bgType: 'volcanic', // Volcanic spires with lava glow
         accent: '#ff6600',
         accentAlt: '#ffaa44',
         killParticle: '#ff4400',
@@ -137,6 +143,7 @@ const ZONES = [
         mountains: '#0a0515',
         ground: '#050008',
         cloudColor: 'rgba(100,50,150,0.3)',
+        bgType: 'void', // Floating islands and strange geometry
         accent: '#aa44ff',
         accentAlt: '#dd88ff',
         killParticle: '#8844ff',
@@ -152,6 +159,7 @@ const ZONES = [
         mountains: '#3a2a00',
         ground: '#2a1a00',
         cloudColor: 'rgba(255,220,100,0.5)',
+        bgType: 'paradise', // Elegant spires and celestial pillars
         accent: '#ffd700',
         accentAlt: '#ffee88',
         killParticle: '#ffdd44',
@@ -167,6 +175,7 @@ const ZONES = [
         mountains: '#2a0a2a',
         ground: '#150515',
         cloudColor: 'rgba(255,100,255,0.4)',
+        bgType: 'final', // Dramatic spikes with eye motif
         accent: '#ff00ff',
         accentAlt: '#ff88ff',
         killParticle: '#ff44ff',
@@ -228,6 +237,371 @@ function initClouds() {
                 speed: 0.2 + Math.random() * 0.3
             });
         }
+    }
+}
+
+// ============================================
+// ZONE-SPECIFIC BACKGROUND SILHOUETTES
+// ============================================
+function drawZoneSilhouette(ctx, canvas, bgType, color, isFever) {
+    const h = canvas.height;
+    const w = canvas.width;
+    const groundY = h - 40;
+
+    ctx.fillStyle = color;
+
+    switch (bgType) {
+        case 'plains':
+            // Rolling hills with distant castle
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            // Gentle rolling hills
+            ctx.lineTo(0, groundY - 30);
+            ctx.quadraticCurveTo(60, groundY - 50, 120, groundY - 25);
+            ctx.quadraticCurveTo(180, groundY - 40, 240, groundY - 20);
+            // Distant castle silhouette
+            ctx.lineTo(280, groundY - 20);
+            ctx.lineTo(280, groundY - 70);
+            ctx.lineTo(290, groundY - 70);
+            ctx.lineTo(290, groundY - 85); // Tower
+            ctx.lineTo(300, groundY - 85);
+            ctx.lineTo(300, groundY - 70);
+            ctx.lineTo(320, groundY - 70);
+            ctx.lineTo(320, groundY - 20);
+            // More hills
+            ctx.quadraticCurveTo(370, groundY - 35, w, groundY - 15);
+            ctx.lineTo(w, h);
+            ctx.fill();
+            break;
+
+        case 'wastes':
+            // Jagged rocks and skull-like formation
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 40);
+            ctx.lineTo(30, groundY - 70);
+            ctx.lineTo(50, groundY - 45);
+            ctx.lineTo(80, groundY - 90);
+            ctx.lineTo(100, groundY - 55);
+            // Skull rock formation
+            ctx.lineTo(140, groundY - 55);
+            ctx.lineTo(150, groundY - 75);
+            ctx.quadraticCurveTo(180, groundY - 95, 210, groundY - 75); // Skull dome
+            ctx.lineTo(220, groundY - 55);
+            // Eye sockets (negative space suggestion)
+            ctx.lineTo(260, groundY - 55);
+            ctx.lineTo(280, groundY - 85);
+            ctx.lineTo(300, groundY - 50);
+            ctx.lineTo(340, groundY - 100);
+            ctx.lineTo(370, groundY - 60);
+            ctx.lineTo(w, groundY - 45);
+            ctx.lineTo(w, h);
+            ctx.fill();
+            break;
+
+        case 'swamp':
+            // Dead twisted trees and murky shapes
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 20);
+            // Dead tree 1
+            ctx.lineTo(40, groundY - 20);
+            ctx.lineTo(45, groundY - 80);
+            ctx.lineTo(35, groundY - 100); // Branch
+            ctx.lineTo(45, groundY - 85);
+            ctx.lineTo(55, groundY - 95); // Branch
+            ctx.lineTo(50, groundY - 80);
+            ctx.lineTo(55, groundY - 20);
+            // Murky ground
+            ctx.quadraticCurveTo(100, groundY - 30, 150, groundY - 15);
+            // Dead tree 2 (smaller)
+            ctx.lineTo(180, groundY - 15);
+            ctx.lineTo(185, groundY - 55);
+            ctx.lineTo(175, groundY - 65);
+            ctx.lineTo(185, groundY - 58);
+            ctx.lineTo(195, groundY - 70);
+            ctx.lineTo(190, groundY - 55);
+            ctx.lineTo(195, groundY - 15);
+            // More murk
+            ctx.quadraticCurveTo(250, groundY - 25, 300, groundY - 10);
+            // Twisted stump
+            ctx.lineTo(340, groundY - 10);
+            ctx.lineTo(350, groundY - 45);
+            ctx.lineTo(360, groundY - 10);
+            ctx.lineTo(w, groundY - 20);
+            ctx.lineTo(w, h);
+            ctx.fill();
+            break;
+
+        case 'ice':
+            // Sharp ice spikes and glaciers
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 50);
+            // Ice spikes - very sharp angles
+            ctx.lineTo(25, groundY - 110);
+            ctx.lineTo(40, groundY - 60);
+            ctx.lineTo(60, groundY - 130);
+            ctx.lineTo(80, groundY - 55);
+            ctx.lineTo(100, groundY - 85);
+            ctx.lineTo(120, groundY - 45);
+            // Glacier plateau
+            ctx.lineTo(180, groundY - 45);
+            ctx.lineTo(200, groundY - 70);
+            ctx.lineTo(250, groundY - 70);
+            ctx.lineTo(270, groundY - 45);
+            // More spikes
+            ctx.lineTo(300, groundY - 100);
+            ctx.lineTo(320, groundY - 50);
+            ctx.lineTo(350, groundY - 120);
+            ctx.lineTo(380, groundY - 55);
+            ctx.lineTo(w, groundY - 40);
+            ctx.lineTo(w, h);
+            ctx.fill();
+
+            // Icicle details (lighter color)
+            if (!isFever) {
+                ctx.fillStyle = 'rgba(150,200,220,0.3)';
+                for (let i = 0; i < 8; i++) {
+                    const x = 30 + i * 50;
+                    ctx.beginPath();
+                    ctx.moveTo(x, groundY - 40);
+                    ctx.lineTo(x + 3, groundY - 55);
+                    ctx.lineTo(x + 6, groundY - 40);
+                    ctx.fill();
+                }
+            }
+            break;
+
+        case 'graveyard':
+            // Tombstones, crosses, and dead trees
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 15);
+            // Cross 1
+            ctx.lineTo(30, groundY - 15);
+            ctx.lineTo(30, groundY - 70);
+            ctx.lineTo(20, groundY - 70);
+            ctx.lineTo(20, groundY - 80);
+            ctx.lineTo(30, groundY - 80);
+            ctx.lineTo(30, groundY - 95);
+            ctx.lineTo(40, groundY - 95);
+            ctx.lineTo(40, groundY - 80);
+            ctx.lineTo(50, groundY - 80);
+            ctx.lineTo(50, groundY - 70);
+            ctx.lineTo(40, groundY - 70);
+            ctx.lineTo(40, groundY - 15);
+            // Tombstone 1
+            ctx.lineTo(80, groundY - 15);
+            ctx.lineTo(80, groundY - 45);
+            ctx.quadraticCurveTo(95, groundY - 55, 110, groundY - 45);
+            ctx.lineTo(110, groundY - 15);
+            // Dead tree
+            ctx.lineTo(150, groundY - 15);
+            ctx.lineTo(155, groundY - 60);
+            ctx.lineTo(145, groundY - 75);
+            ctx.lineTo(155, groundY - 65);
+            ctx.lineTo(165, groundY - 80);
+            ctx.lineTo(160, groundY - 60);
+            ctx.lineTo(165, groundY - 15);
+            // More tombstones
+            ctx.lineTo(200, groundY - 15);
+            ctx.lineTo(200, groundY - 40);
+            ctx.lineTo(220, groundY - 40);
+            ctx.lineTo(220, groundY - 15);
+            // Cross 2 (distant, smaller)
+            ctx.lineTo(270, groundY - 15);
+            ctx.lineTo(270, groundY - 50);
+            ctx.lineTo(263, groundY - 50);
+            ctx.lineTo(263, groundY - 57);
+            ctx.lineTo(270, groundY - 57);
+            ctx.lineTo(270, groundY - 70);
+            ctx.lineTo(280, groundY - 70);
+            ctx.lineTo(280, groundY - 57);
+            ctx.lineTo(287, groundY - 57);
+            ctx.lineTo(287, groundY - 50);
+            ctx.lineTo(280, groundY - 50);
+            ctx.lineTo(280, groundY - 15);
+            // Final tombstone
+            ctx.lineTo(340, groundY - 15);
+            ctx.lineTo(340, groundY - 35);
+            ctx.quadraticCurveTo(355, groundY - 45, 370, groundY - 35);
+            ctx.lineTo(370, groundY - 15);
+            ctx.lineTo(w, groundY - 15);
+            ctx.lineTo(w, h);
+            ctx.fill();
+            break;
+
+        case 'volcanic':
+            // Volcanic spires with lava cracks
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 60);
+            ctx.lineTo(40, groundY - 100);
+            ctx.lineTo(60, groundY - 70);
+            ctx.lineTo(100, groundY - 140);
+            ctx.lineTo(130, groundY - 80);
+            ctx.lineTo(160, groundY - 110);
+            ctx.lineTo(190, groundY - 65);
+            // Volcano crater
+            ctx.lineTo(220, groundY - 65);
+            ctx.lineTo(240, groundY - 95);
+            ctx.lineTo(260, groundY - 85);
+            ctx.lineTo(280, groundY - 95);
+            ctx.lineTo(300, groundY - 65);
+            // More spires
+            ctx.lineTo(330, groundY - 120);
+            ctx.lineTo(360, groundY - 70);
+            ctx.lineTo(w, groundY - 50);
+            ctx.lineTo(w, h);
+            ctx.fill();
+
+            // Lava glow cracks
+            if (!isFever) {
+                ctx.strokeStyle = 'rgba(255,100,0,0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(100, groundY - 130);
+                ctx.lineTo(105, groundY - 115);
+                ctx.lineTo(95, groundY - 100);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(330, groundY - 110);
+                ctx.lineTo(335, groundY - 95);
+                ctx.stroke();
+            }
+            break;
+
+        case 'void':
+            // Floating islands and inverted geometry
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 30);
+            // Floating chunk 1 (inverted mountain pointing up from ground)
+            ctx.lineTo(60, groundY - 30);
+            ctx.lineTo(80, groundY - 80);
+            ctx.lineTo(100, groundY - 30);
+            // Gap (floating island above - drawn separately)
+            ctx.lineTo(180, groundY - 25);
+            // Inverted spire
+            ctx.lineTo(200, groundY - 25);
+            ctx.lineTo(220, groundY - 100);
+            ctx.lineTo(240, groundY - 25);
+            // Another gap
+            ctx.lineTo(320, groundY - 30);
+            ctx.lineTo(350, groundY - 70);
+            ctx.lineTo(380, groundY - 30);
+            ctx.lineTo(w, groundY - 25);
+            ctx.lineTo(w, h);
+            ctx.fill();
+
+            // Floating islands (in sky)
+            if (!isFever) {
+                ctx.fillStyle = 'rgba(50,20,80,0.6)';
+                // Island 1
+                ctx.beginPath();
+                ctx.moveTo(120, 80);
+                ctx.lineTo(100, 100);
+                ctx.lineTo(160, 100);
+                ctx.lineTo(140, 80);
+                ctx.lineTo(130, 70);
+                ctx.fill();
+                // Island 2
+                ctx.beginPath();
+                ctx.moveTo(280, 60);
+                ctx.lineTo(260, 80);
+                ctx.lineTo(320, 80);
+                ctx.lineTo(300, 60);
+                ctx.fill();
+            }
+            break;
+
+        case 'paradise':
+            // Elegant spires and celestial columns
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 25);
+            // Elegant curved hill
+            ctx.quadraticCurveTo(50, groundY - 45, 100, groundY - 25);
+            // Column 1
+            ctx.lineTo(120, groundY - 25);
+            ctx.lineTo(120, groundY - 90);
+            ctx.lineTo(115, groundY - 95);
+            ctx.lineTo(125, groundY - 100);
+            ctx.lineTo(135, groundY - 95);
+            ctx.lineTo(130, groundY - 90);
+            ctx.lineTo(130, groundY - 25);
+            // Gentle curve
+            ctx.quadraticCurveTo(180, groundY - 40, 230, groundY - 25);
+            // Tall spire
+            ctx.lineTo(250, groundY - 25);
+            ctx.lineTo(255, groundY - 120);
+            ctx.lineTo(260, groundY - 130); // Pointed top
+            ctx.lineTo(265, groundY - 120);
+            ctx.lineTo(270, groundY - 25);
+            // More elegance
+            ctx.quadraticCurveTo(320, groundY - 35, 360, groundY - 25);
+            // Column 2
+            ctx.lineTo(370, groundY - 25);
+            ctx.lineTo(370, groundY - 70);
+            ctx.lineTo(380, groundY - 75);
+            ctx.lineTo(390, groundY - 70);
+            ctx.lineTo(390, groundY - 25);
+            ctx.lineTo(w, groundY - 20);
+            ctx.lineTo(w, h);
+            ctx.fill();
+            break;
+
+        case 'final':
+            // Dramatic aggressive spikes with eye motif
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(0, groundY - 80);
+            ctx.lineTo(30, groundY - 130);
+            ctx.lineTo(50, groundY - 70);
+            ctx.lineTo(80, groundY - 150);
+            ctx.lineTo(110, groundY - 80);
+            // Central eye structure
+            ctx.lineTo(140, groundY - 80);
+            ctx.lineTo(150, groundY - 100);
+            ctx.quadraticCurveTo(200, groundY - 140, 250, groundY - 100); // Eye curve top
+            ctx.lineTo(260, groundY - 80);
+            // More spikes
+            ctx.lineTo(290, groundY - 160);
+            ctx.lineTo(320, groundY - 90);
+            ctx.lineTo(350, groundY - 140);
+            ctx.lineTo(380, groundY - 70);
+            ctx.lineTo(w, groundY - 60);
+            ctx.lineTo(w, h);
+            ctx.fill();
+
+            // Eye detail
+            if (!isFever) {
+                // Eye socket glow
+                ctx.fillStyle = 'rgba(255,0,255,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(200, groundY - 95, 30, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // Pupil
+                ctx.fillStyle = 'rgba(255,50,255,0.6)';
+                ctx.beginPath();
+                ctx.arc(200, groundY - 95, 8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            break;
+
+        default:
+            // Fallback generic mountains
+            ctx.beginPath();
+            ctx.moveTo(0, h);
+            ctx.lineTo(50, groundY - 60);
+            ctx.lineTo(120, groundY - 30);
+            ctx.lineTo(180, groundY - 80);
+            ctx.lineTo(250, groundY - 40);
+            ctx.lineTo(320, groundY - 90);
+            ctx.lineTo(400, groundY - 50);
+            ctx.lineTo(w, h);
+            ctx.fill();
     }
 }
 
@@ -390,19 +764,10 @@ export function drawBackground() {
         });
     }
 
-    // Silhouette mountains (color changes with zone)
+    // Zone-specific background silhouettes
     const mountainColor = player.feverMode ? '#200a20' : zone.mountains;
     ctx.fillStyle = mountainColor;
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height);
-    ctx.lineTo(50, canvas.height - 60);
-    ctx.lineTo(120, canvas.height - 30);
-    ctx.lineTo(180, canvas.height - 80);
-    ctx.lineTo(250, canvas.height - 40);
-    ctx.lineTo(320, canvas.height - 90);
-    ctx.lineTo(400, canvas.height - 50);
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.fill();
+    drawZoneSilhouette(ctx, canvas, zone.bgType, mountainColor, player.feverMode);
 
     // Ground with beat pulse
     const groundColor = player.feverMode ? '#150510' : zone.ground;

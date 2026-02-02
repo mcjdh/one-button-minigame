@@ -422,9 +422,9 @@ export function takeDamage() {
 
     if (player.lives <= 0) {
         state.gameState = 'gameover';
-        // Extra death effects
-        state.screenShake = 25;
-        state.hitStop = 15;
+        // Extra death effects (reduced shake for less jarring feel)
+        state.screenShake = 12;
+        state.hitStop = 12;
         // Play game over jingle
         playGameOverJingle();
         // Save high score
