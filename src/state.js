@@ -22,6 +22,7 @@ export const state = {
         lives: 3,
         score: 0,
         combo: 0,
+        kills: 0, // Total kills for zone progression
         hasSeenArmored: false,
         hasSeenGiant: false,
         hasSeenMage: false,

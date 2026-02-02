@@ -7,6 +7,7 @@ import {
     FEVER_COMBO_THRESHOLD,
     TRACK_DISTANCE,
     FRAMES_PER_SECOND,
+    BEATS_TO_HIT,
     DOUBLE_TAP_SPACING,
     TRIPLE_TAP_SPACING,
     TAP_HOLD_SPACING,
@@ -15,7 +16,7 @@ import {
 } from './constants.js';
 import { state, dom } from './state.js';
 import { initAudio, audioCtx, scheduleBeat, playSFX, playEnemyStinger, startTitleMusic, stopTitleMusic } from './audio.js';
-import { drawBackground, drawWarrior, drawEnemy, drawUI, drawEffects, drawCRT, drawGameOver, showBigPrompt, spawnParticles } from './render.js';
+import { drawBackground, drawWarrior, drawEnemy, drawUI, drawEffects, drawCRT, drawGameOver, showBigPrompt, spawnParticles, resetZone } from './render.js';
 import { spawnEnemy, resolveClash } from './combat.js';
 import { updateCharge, setupInputListeners, resetFirstTap } from './input.js';
 
@@ -54,9 +55,11 @@ export function startGame() {
 }
 
 export function resetGame() {
+    resetZone(); // Reset zone progression
     state.player.lives = 3;
     state.player.score = 0;
     state.player.combo = 0;
+    state.player.kills = 0;
     state.player.stance = 'idle';
     state.player.hasSeenArmored = false;
     state.player.hasSeenGiant = false;
@@ -110,11 +113,21 @@ function update() {
         state.enemy.x -= 3;
     }
 
-    // Update beat markers - move toward hit zone
-    // speed = distance / frames = TRACK_DISTANCE / (FRAMES_PER_SECOND * secondsPerBeat)
-    const markerSpeed = (TRACK_DISTANCE * state.bpm) / (FRAMES_PER_SECOND * 60);
+    // Update beat markers - use audio time for perfect sync
+    // Position is calculated directly from audio clock, not frame-based movement
+    // This ensures markers are always perfectly synced to the beat regardless of frame rate
+    const pixelsPerSecond = (TRACK_DISTANCE * state.bpm) / (BEATS_TO_HIT * 60);
+    const currentTime = audioCtx ? audioCtx.currentTime : 0;
+
     state.beatMarkers.forEach(marker => {
-        marker.x -= markerSpeed;
+        if (marker.spawnTime !== undefined) {
+            // Time-based position: spawn position minus distance traveled
+            const elapsed = currentTime - marker.spawnTime;
+            marker.x = marker.spawnX - (elapsed * pixelsPerSecond);
+        } else {
+            // Fallback for markers without spawnTime (shouldn't happen)
+            marker.x -= (TRACK_DISTANCE * state.bpm) / (FRAMES_PER_SECOND * 60 * BEATS_TO_HIT);
+        }
     });
 
     // Remove markers that have passed or been hit
@@ -197,15 +210,48 @@ function advancePhase() {
     state.phase = state.currentBeat;
 
     switch (state.phase) {
-        case 0: // Enemy appears
+        case 0: // Enemy announcement (enemy + markers usually pre-spawned on beat 3)
             state.player.stance = 'idle';
             resetFirstTap(); // Clear any stale double-tap state
+
+            // Handle first spawn or edge cases where enemy wasn't pre-spawned
             if (!state.enemy || !state.enemy.alive) {
                 spawnEnemy();
-                // Play enemy-specific audio stinger
+                // Spawn markers for this enemy (fallback for first round)
+                const markerType = state.enemy.counter;
+                const spawnTime = audioCtx ? audioCtx.currentTime : 0;
+                const baseX = canvas.width + 20;
+
+                if (markerType === 'defensive') {
+                    state.beatMarkers.push({ x: baseX, spawnX: baseX, spawnTime, type: markerType, hit: false, isSecond: false });
+                    state.beatMarkers.push({ x: baseX + DOUBLE_TAP_SPACING, spawnX: baseX + DOUBLE_TAP_SPACING, spawnTime, type: markerType, hit: false, isSecond: true });
+                } else if (markerType === 'charge') {
+                    state.beatMarkers.push({ x: baseX, spawnX: baseX, spawnTime, type: markerType, hit: false, tailLength: HOLD_TAIL_LENGTH });
+                } else if (markerType === 'triple') {
+                    for (let i = 0; i < 3; i++) {
+                        const tripleX = baseX + i * TRIPLE_TAP_SPACING;
+                        state.beatMarkers.push({ x: tripleX, spawnX: tripleX, spawnTime, type: markerType, hit: false, tripleIndex: i });
+                    }
+                } else if (markerType === 'tapthenhold') {
+                    state.beatMarkers.push({ x: baseX, spawnX: baseX, spawnTime, type: markerType, hit: false, isTap: true, isHold: false });
+                    const holdX = baseX + TAP_HOLD_SPACING;
+                    state.beatMarkers.push({ x: holdX, spawnX: holdX, spawnTime, type: markerType, hit: false, isTap: false, isHold: true, tailLength: 50 });
+                } else {
+                    state.beatMarkers.push({ x: baseX, spawnX: baseX, spawnTime, type: markerType, hit: false });
+                }
+            }
+
+            // Play announcement for current enemy
+            if (state.enemy && state.enemy.alive) {
                 playEnemyStinger(state.enemy.type);
-                // WarioWare-style enemy announcement
-                if (state.enemy.type === 'swordsman') {
+
+                // Check if this is a returning enemy (survived a block)
+                const isReturning = state.enemy.announced;
+                state.enemy.announced = true;
+
+                if (isReturning) {
+                    showBigPrompt('AGAIN!', '#ffaa00');
+                } else if (state.enemy.type === 'swordsman') {
                     showBigPrompt('SWORDSMAN!', '#ff4444');
                 } else if (state.enemy.type === 'archer') {
                     showBigPrompt('ARCHER!', '#44ff44');
@@ -216,71 +262,6 @@ function advancePhase() {
                 } else if (state.enemy.type === 'mage') {
                     showBigPrompt('MAGE!', '#ff44aa');
                 }
-            } else {
-                // Enemy returning - play stinger again
-                playEnemyStinger(state.enemy.type);
-                showBigPrompt('AGAIN!', '#ffaa00');
-            }
-
-            // Spawn beat marker(s) based on enemy type
-            const markerType = state.enemy ? state.enemy.counter : 'aggressive';
-
-            if (markerType === 'defensive') {
-                // DOUBLE TAP: Two markers - first arrives first, second follows
-                state.beatMarkers.push({
-                    x: canvas.width + 20, // First marker (arrives first)
-                    type: markerType,
-                    hit: false,
-                    isSecond: false
-                });
-                state.beatMarkers.push({
-                    x: canvas.width + 20 + DOUBLE_TAP_SPACING, // Second marker (arrives after)
-                    type: markerType,
-                    hit: false,
-                    isSecond: true
-                });
-            } else if (markerType === 'charge') {
-                // HOLD: Long note with tail
-                state.beatMarkers.push({
-                    x: canvas.width + 20,
-                    type: markerType,
-                    hit: false,
-                    tailLength: HOLD_TAIL_LENGTH
-                });
-            } else if (markerType === 'triple') {
-                // TRIPLE TAP: Three markers in sequence
-                for (let i = 0; i < 3; i++) {
-                    state.beatMarkers.push({
-                        x: canvas.width + 20 + i * TRIPLE_TAP_SPACING,
-                        type: markerType,
-                        hit: false,
-                        tripleIndex: i // 0, 1, 2
-                    });
-                }
-            } else if (markerType === 'tapthenhold') {
-                // TAP-HOLD: Two markers - first for tap, second for hold
-                state.beatMarkers.push({
-                    x: canvas.width + 20, // First marker (tap)
-                    type: markerType,
-                    hit: false,
-                    isTap: true,
-                    isHold: false
-                });
-                state.beatMarkers.push({
-                    x: canvas.width + 20 + TAP_HOLD_SPACING, // Second marker (hold)
-                    type: markerType,
-                    hit: false,
-                    isTap: false,
-                    isHold: true,
-                    tailLength: 50 // Short tail on hold marker
-                });
-            } else {
-                // SINGLE TAP: Normal marker
-                state.beatMarkers.push({
-                    x: canvas.width + 20,
-                    type: markerType,
-                    hit: false
-                });
             }
             break;
 
@@ -352,12 +333,69 @@ function advancePhase() {
             }
             break;
 
-        case 3: // Aftermath
-            // Prepare for next round
+        case 3: // Aftermath - prepare for next round with anticipation
+            // Clear dead enemy
             if (state.enemy && !state.enemy.alive) {
                 state.enemy = null;
             }
-            // BPM now increases per-kill in combat.js
+
+            // Clear old markers - they've either been hit or passed
+            state.beatMarkers = [];
+
+            // Spawn enemy if needed (dead or never existed)
+            if (!state.enemy) {
+                spawnEnemy();
+            }
+
+            // Always spawn fresh markers for current enemy
+            if (state.enemy) {
+                const markerType = state.enemy.counter;
+                const spawnTime = audioCtx ? audioCtx.currentTime : 0;
+                const baseX = canvas.width + 20;
+
+                if (markerType === 'defensive') {
+                    state.beatMarkers.push({
+                        x: baseX, spawnX: baseX, spawnTime,
+                        type: markerType, hit: false, isSecond: false
+                    });
+                    const secondX = baseX + DOUBLE_TAP_SPACING;
+                    state.beatMarkers.push({
+                        x: secondX, spawnX: secondX, spawnTime,
+                        type: markerType, hit: false, isSecond: true
+                    });
+                } else if (markerType === 'charge') {
+                    state.beatMarkers.push({
+                        x: baseX, spawnX: baseX, spawnTime,
+                        type: markerType, hit: false, tailLength: HOLD_TAIL_LENGTH
+                    });
+                } else if (markerType === 'triple') {
+                    for (let i = 0; i < 3; i++) {
+                        const tripleX = baseX + i * TRIPLE_TAP_SPACING;
+                        state.beatMarkers.push({
+                            x: tripleX, spawnX: tripleX, spawnTime,
+                            type: markerType, hit: false, tripleIndex: i
+                        });
+                    }
+                } else if (markerType === 'tapthenhold') {
+                    state.beatMarkers.push({
+                        x: baseX, spawnX: baseX, spawnTime,
+                        type: markerType, hit: false, isTap: true, isHold: false
+                    });
+                    const holdX = baseX + TAP_HOLD_SPACING;
+                    state.beatMarkers.push({
+                        x: holdX, spawnX: holdX, spawnTime,
+                        type: markerType, hit: false, isTap: false, isHold: true, tailLength: 50
+                    });
+                } else {
+                    state.beatMarkers.push({
+                        x: baseX, spawnX: baseX, spawnTime,
+                        type: markerType, hit: false
+                    });
+                }
+
+                // Subtle anticipation - small beat pulse
+                state.beatPulse = Math.max(state.beatPulse, 0.3);
+            }
             break;
     }
 }

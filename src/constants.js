@@ -11,17 +11,18 @@ export const BEAT_WINDOW = 300; // ms - forgiving timing
 export const HOLD_THRESHOLD = 400; // ms to trigger charge attack
 
 // Double-tap marker spacing (pixels between 1st and 2nd marker)
-// Spaced apart so you hit each one as it passes through
-export const DOUBLE_TAP_SPACING = 70;
+// With BEATS_TO_HIT=2, markers move at half speed, so halve spacing to maintain timing feel
+// 35px at 170px/sec = ~0.2 seconds gap (snappy quarter-beat feel)
+export const DOUBLE_TAP_SPACING = 35;
 
 // Triple-tap (Giant) settings
-export const TRIPLE_TAP_SPACING = 50; // Tighter spacing for triple
+export const TRIPLE_TAP_SPACING = 25; // Halved for new timing - ~0.15s between each tap
 export const TRIPLE_TAP_WINDOW = 600; // ms - longer window for 3 taps
 
 // Tap-hold (Mage) settings
 export const TAP_HOLD_WINDOW = 400; // ms - time to start hold after tap
 export const TAP_HOLD_DURATION = 300; // ms - how long to hold after tap
-export const TAP_HOLD_SPACING = 60; // pixels between tap marker and hold marker
+export const TAP_HOLD_SPACING = 30; // Halved - ~0.18s between tap and hold start
 
 // Beat track
 export const HIT_ZONE_X = 80; // Where you should hit
@@ -29,6 +30,7 @@ export const HIT_RANGE = 110; // Very forgiving hit detection range
 export const TRACK_START_X = 420; // Where markers spawn (off-screen right)
 export const TRACK_DISTANCE = 340; // Distance markers travel (TRACK_START_X - HIT_ZONE_X)
 export const FRAMES_PER_SECOND = 60;
+export const BEATS_TO_HIT = 2; // Markers take 2 beats to reach hit zone (spawn beat 3 → arrive beat 1)
 
 // Note frequencies (pentatonic scale in C)
 export const NOTES = {

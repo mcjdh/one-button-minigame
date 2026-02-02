@@ -605,6 +605,11 @@ export function setupInputListeners(startGame, resetGame) {
         }
     });
 
+    // Prevent scrolling/zooming on mobile during gameplay
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+
     // Start overlay
     dom.startOverlay.addEventListener('click', () => {
         if (state.gameState === 'title') {

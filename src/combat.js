@@ -9,8 +9,8 @@ import {
     BPM_PER_KILL, BPM_DAMAGE_PENALTY, MAX_BPM, STARTING_BPM
 } from './constants.js';
 import { state, dom } from './state.js';
-import { playSFX, playGameOverJingle, playCrash } from './audio.js';
-import { showText, showBigPrompt, spawnParticles } from './render.js';
+import { playSFX, playGameOverJingle, playCrash, playTone } from './audio.js';
+import { showText, showBigPrompt, spawnParticles, getCurrentZone } from './render.js';
 
 // ============================================
 // ENEMY SPAWNING
@@ -62,7 +62,8 @@ export function spawnEnemy() {
         targetX: canvas.width - 100,
         y: canvas.height - 80,
         alive: true,
-        staggered: false
+        staggered: false,
+        announced: false // Track if enemy has been announced (for "AGAIN!" on survive)
     };
 }
 
@@ -120,6 +121,26 @@ function spawnDeathGhost(enemy) {
 }
 
 // ============================================
+// ZONE TRANSITION CHECK
+// ============================================
+const KILLS_PER_ZONE = 5; // Match render.js - every 5 kills = new zone
+
+function checkZoneTransition(oldKills, newKills) {
+    const oldZone = Math.floor(oldKills / KILLS_PER_ZONE);
+    const newZone = Math.floor(newKills / KILLS_PER_ZONE);
+
+    if (newZone > oldZone && newKills > 0) {
+        // Epic zone transition sound - dramatic fanfare
+        playCrash(); // Crash cymbal
+        // Rising triumphant notes
+        playTone(261.63, 0.3, 'square', 0.3); // C4
+        setTimeout(() => playTone(329.63, 0.3, 'square', 0.35), 100); // E4
+        setTimeout(() => playTone(392.00, 0.4, 'square', 0.4), 200); // G4
+        setTimeout(() => playTone(523.25, 0.5, 'square', 0.35), 300); // C5
+    }
+}
+
+// ============================================
 // BPM ADJUSTMENT
 // ============================================
 function adjustBPM(delta) {
@@ -132,15 +153,16 @@ function adjustBPM(delta) {
         state.maxBpmReached = state.bpm;
     }
 
-    // Visual feedback at tempo milestones
+    // Visual feedback at tempo milestones - zone-colored
+    const zone = getCurrentZone();
     if (delta > 0 && state.bpm !== oldBPM) {
         // Show "FASTER!" every 10 BPM
         if (Math.floor(state.bpm / 10) > Math.floor(oldBPM / 10)) {
-            showBigPrompt('FASTER!', '#ff8800');
+            showBigPrompt('FASTER!', zone.killParticle);
         }
     } else if (delta < 0 && state.bpm !== oldBPM) {
         // Visual cue for slowdown (recovery)
-        showText('tempo ↓', dom.canvas.width / 2, 80, '#66aaff');
+        showText('tempo ↓', dom.canvas.width / 2, 80, zone.accentAlt);
     }
 
     return state.bpm !== oldBPM;
@@ -163,15 +185,16 @@ export function resolveClash() {
     if (stance === 'stumble') {
         // Stumble always takes damage (with graze chance)
         if (roll < 0.2) {
-            // GRAZE! Lucky dodge - celebrate it!
-            state.flashColor = '#ffff00';
+            // GRAZE! Lucky dodge - celebrate it! - zone-colored
+            const zone = getCurrentZone();
+            state.flashColor = zone.comboGlow;
             state.flashAlpha = 0.1;
             state.screenShake = 5;
             state.hitStop = 3;
-            showBigPrompt('GRAZE!', '#ffff00');
+            showBigPrompt('GRAZE!', zone.comboGlow);
             playSFX('graze');
 
-            // Sparks flying past player
+            // Sparks flying past player - zone-colored
             for (let i = 0; i < 12; i++) {
                 state.particles.push({
                     x: 70 + Math.random() * 20,
@@ -179,7 +202,7 @@ export function resolveClash() {
                     vx: 4 + Math.random() * 4,
                     vy: (Math.random() - 0.5) * 4,
                     life: 0.8,
-                    color: i % 2 === 0 ? '#ffff00' : '#ffffff'
+                    color: i % 2 === 0 ? zone.comboGlow : '#ffffff'
                 });
             }
         } else {
@@ -191,6 +214,9 @@ export function resolveClash() {
         spawnDeathGhost(enemy);
         adjustBPM(BPM_PER_KILL); // Speed up the rhythm!
         player.combo++;
+        const oldKills = player.kills;
+        player.kills++; // Track total kills for zone progression
+        checkZoneTransition(oldKills, player.kills);
         player.victoryTimer = 0.8; // Trigger victory animation
 
         // Fever mode = guaranteed crits!
@@ -260,17 +286,19 @@ export function resolveClash() {
             state.screenShake = 8;
             state.hitStop = 6; // Small freeze
             state.chromaOffset = 3;
-            state.flashColor = player.feverMode ? '#ff00ff' : '#ffff00';
+            const zone = getCurrentZone();
+            state.flashColor = player.feverMode ? zone.accent : zone.comboGlow;
             state.flashAlpha = 0.1;
             const critText = player.feverMode ? 'FEVER CRIT!' : CRIT_TEXTS[Math.floor(Math.random() * CRIT_TEXTS.length)];
-            showText(critText, dom.canvas.width/2, dom.canvas.height/2 - 30, player.feverMode ? '#ff00ff' : '#ffff00');
+            showText(critText, dom.canvas.width/2, dom.canvas.height/2 - 30, player.feverMode ? zone.accent : zone.comboGlow);
             playSFX('crit');
-            spawnParticles(enemy.x, enemy.y, 15, player.feverMode ? '#ff00ff' : enemy.color);
+            spawnParticles(enemy.x, enemy.y, 15, player.feverMode ? zone.killParticle : enemy.color);
         } else {
-            // Normal kill - varied text
+            // Normal kill - varied text, zone-colored
             player.score += 100 * (1 + Math.floor(player.combo / 5));
             const killText = KILL_TEXTS[Math.floor(Math.random() * KILL_TEXTS.length)];
-            showText(killText, dom.canvas.width/2, dom.canvas.height/2 - 30, '#88ff88');
+            const zone = getCurrentZone();
+            showText(killText, dom.canvas.width/2, dom.canvas.height/2 - 30, zone.killParticle);
             playSFX('hit');
             spawnParticles(enemy.x, enemy.y, 10, enemy.color);
         }
@@ -285,6 +313,9 @@ export function resolveClash() {
             spawnDeathGhost(enemy);
             adjustBPM(BPM_PER_KILL); // Speed up the rhythm!
             player.combo++;
+            const oldKillsCounter = player.kills;
+            player.kills++; // Track total kills
+            checkZoneTransition(oldKillsCounter, player.kills);
             player.victoryTimer = 0.8; // Victory animation
             player.score += 150;
             showText('COUNTER!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#00ffff');
@@ -305,6 +336,9 @@ export function resolveClash() {
         spawnDeathGhost(enemy);
         adjustBPM(BPM_PER_KILL); // Speed up the rhythm!
         player.combo++;
+        const oldKillsCharge = player.kills;
+        player.kills++; // Track total kills
+        checkZoneTransition(oldKillsCharge, player.kills);
         player.victoryTimer = 0.8; // Victory animation
         player.score += 150;
         state.screenShake = 12;
@@ -314,15 +348,16 @@ export function resolveClash() {
     } else {
         // Wrong stance - DAMAGE with graze chance
         if (roll < 0.2) {
-            // GRAZE! Lucky dodge!
-            state.flashColor = '#ffff00';
+            // GRAZE! Lucky dodge! - zone-colored
+            const zone = getCurrentZone();
+            state.flashColor = zone.comboGlow;
             state.flashAlpha = 0.1;
             state.screenShake = 5;
             state.hitStop = 3;
-            showBigPrompt('LUCKY!', '#ffff00');
+            showBigPrompt('LUCKY!', zone.comboGlow);
             playSFX('graze');
 
-            // Sparks
+            // Sparks - zone-colored
             for (let i = 0; i < 12; i++) {
                 state.particles.push({
                     x: 70 + Math.random() * 20,
@@ -330,7 +365,7 @@ export function resolveClash() {
                     vx: 4 + Math.random() * 4,
                     vy: (Math.random() - 0.5) * 4,
                     life: 0.8,
-                    color: i % 2 === 0 ? '#ffff00' : '#ffffff'
+                    color: i % 2 === 0 ? zone.comboGlow : '#ffffff'
                 });
             }
         } else {
@@ -406,17 +441,20 @@ export function takeDamage() {
 export function checkComboMilestone() {
     const { player } = state;
     const milestones = [5, 10, 15, 20, 25, 30, 50];
+    const zone = getCurrentZone();
 
     for (const m of milestones) {
         if (player.combo >= m && state.lastComboMilestone < m) {
             state.lastComboMilestone = m;
             state.comboMilestone = 1;
 
-            // Big celebration!
-            showBigPrompt(`${m} COMBO!`, m >= 20 ? '#ff00ff' : (m >= 10 ? '#ff8800' : '#ffff00'));
+            // Big celebration! - zone-colored
+            const milestoneColor = m >= 20 ? zone.accent : (m >= 10 ? zone.killParticle : zone.comboGlow);
+            showBigPrompt(`${m} COMBO!`, milestoneColor);
             state.screenShake = m >= 20 ? 15 : (m >= 10 ? 10 : 5);
 
-            // Burst of particles
+            // Burst of particles - zone-colored palette
+            const zoneColors = [zone.accent, zone.comboGlow, zone.killParticle, zone.accentAlt];
             for (let i = 0; i < m; i++) {
                 state.particles.push({
                     x: dom.canvas.width / 2 + (Math.random() - 0.5) * 100,
@@ -424,7 +462,7 @@ export function checkComboMilestone() {
                     vx: (Math.random() - 0.5) * 15,
                     vy: (Math.random() - 0.5) * 15 - 5,
                     life: 1.2,
-                    color: ['#ff00ff', '#ffff00', '#00ffff', '#ff8800'][Math.floor(Math.random() * 4)]
+                    color: zoneColors[Math.floor(Math.random() * zoneColors.length)]
                 });
             }
 

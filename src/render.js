@@ -35,33 +35,179 @@ export function spawnParticles(x, y, count, color) {
 // BACKGROUND
 // ============================================
 
-// Environment themes based on score
-const ENVIRONMENTS = {
-    sunset: {
+// Epic zone definitions - Elden Ring style progression every 10 kills
+// Each zone has a complete color palette for visual cohesion
+const ZONES = [
+    {
+        name: 'THE STARTING PLAINS',
+        subtitle: 'Where legends are born',
         sky: ['#ff6b35', '#f79322', '#ff4444', '#1a0a0a'],
         sun: '#ffdd44',
         mountains: '#0a0505',
-        ground: '#0f0808'
+        ground: '#0f0808',
+        cloudColor: 'rgba(255,200,150,0.4)',
+        // Zone-specific accent colors for effects
+        accent: '#ffaa44',        // Primary accent
+        accentAlt: '#ffdd88',     // Secondary accent
+        killParticle: '#ff8844',  // Kill burst color
+        comboGlow: '#ffcc00',     // Combo text glow
+        streakColor: 'rgba(255, 200, 100, 0.2)',
+        groundPulse: 'rgba(255,150,100,0.4)'
     },
-    desert: {
-        sky: ['#ffcc66', '#ff9933', '#cc6600', '#331100'],
-        sun: '#ffff88',
-        mountains: '#553311',
-        ground: '#442200'
+    {
+        name: 'CRIMSON WASTES',
+        subtitle: 'Blood stains these sands',
+        sky: ['#8b0000', '#cc2222', '#661111', '#1a0505'],
+        sun: '#ff4444',
+        mountains: '#2a0a0a',
+        ground: '#1a0505',
+        cloudColor: 'rgba(200,100,100,0.3)',
+        accent: '#ff2222',
+        accentAlt: '#ff6666',
+        killParticle: '#cc0000',
+        comboGlow: '#ff4444',
+        streakColor: 'rgba(255, 100, 100, 0.25)',
+        groundPulse: 'rgba(255,50,50,0.4)'
     },
-    forest: {
-        sky: ['#226644', '#114422', '#0a2211', '#050a05'],
-        sun: '#aaffaa',
-        mountains: '#0a1a0a',
-        ground: '#0a1505'
+    {
+        name: 'THE TOXIC MIRE',
+        subtitle: 'Death seeps from below',
+        sky: ['#2d5a27', '#1a4a1a', '#0d2d0d', '#051505'],
+        sun: '#88ff44',
+        mountains: '#0a1a05',
+        ground: '#051a05',
+        cloudColor: 'rgba(100,200,100,0.3)',
+        accent: '#44ff44',
+        accentAlt: '#88ff88',
+        killParticle: '#66ff22',
+        comboGlow: '#44ff88',
+        streakColor: 'rgba(100, 255, 100, 0.2)',
+        groundPulse: 'rgba(100,255,100,0.4)'
     },
-    castle: {
-        sky: ['#442266', '#331155', '#220a44', '#0a0510'],
-        sun: '#aa88ff',
-        mountains: '#1a0a20',
-        ground: '#0f0515'
+    {
+        name: 'FROZEN PEAKS',
+        subtitle: 'The cold claims all',
+        sky: ['#a8d5e5', '#6ab7d4', '#3a8aaa', '#1a3a4a'],
+        sun: '#ffffff',
+        mountains: '#2a4a5a',
+        ground: '#1a2a3a',
+        cloudColor: 'rgba(200,230,255,0.5)',
+        accent: '#88ddff',
+        accentAlt: '#ffffff',
+        killParticle: '#aaeeff',
+        comboGlow: '#66ccff',
+        streakColor: 'rgba(150, 200, 255, 0.3)',
+        groundPulse: 'rgba(150,200,255,0.4)'
+    },
+    {
+        name: 'ASHEN GRAVEYARD',
+        subtitle: 'Here lie the fallen',
+        sky: ['#4a4a4a', '#3a3a3a', '#2a2a2a', '#0a0a0a'],
+        sun: '#888888',
+        mountains: '#1a1a1a',
+        ground: '#0f0f0f',
+        cloudColor: 'rgba(100,100,100,0.4)',
+        accent: '#aaaaaa',
+        accentAlt: '#dddddd',
+        killParticle: '#888888',
+        comboGlow: '#cccccc',
+        streakColor: 'rgba(150, 150, 150, 0.2)',
+        groundPulse: 'rgba(150,150,150,0.3)'
+    },
+    {
+        name: 'THE BURNING HELLS',
+        subtitle: 'Embrace the flames',
+        sky: ['#ff4400', '#cc2200', '#881100', '#220500'],
+        sun: '#ffaa00',
+        mountains: '#2a0a00',
+        ground: '#1a0500',
+        cloudColor: 'rgba(255,150,50,0.4)',
+        accent: '#ff6600',
+        accentAlt: '#ffaa44',
+        killParticle: '#ff4400',
+        comboGlow: '#ff8800',
+        streakColor: 'rgba(255, 150, 50, 0.3)',
+        groundPulse: 'rgba(255,100,0,0.5)'
+    },
+    {
+        name: 'VOID BETWEEN WORLDS',
+        subtitle: 'Reality fades...',
+        sky: ['#1a0a2a', '#0f051a', '#05000a', '#000000'],
+        sun: '#8844ff',
+        mountains: '#0a0515',
+        ground: '#050008',
+        cloudColor: 'rgba(100,50,150,0.3)',
+        accent: '#aa44ff',
+        accentAlt: '#dd88ff',
+        killParticle: '#8844ff',
+        comboGlow: '#aa66ff',
+        streakColor: 'rgba(150, 100, 255, 0.25)',
+        groundPulse: 'rgba(150,50,255,0.4)'
+    },
+    {
+        name: 'GOLDEN PARADISE',
+        subtitle: 'Only the worthy enter',
+        sky: ['#ffd700', '#ffaa00', '#cc8800', '#4a3500'],
+        sun: '#ffffff',
+        mountains: '#3a2a00',
+        ground: '#2a1a00',
+        cloudColor: 'rgba(255,220,100,0.5)',
+        accent: '#ffd700',
+        accentAlt: '#ffee88',
+        killParticle: '#ffdd44',
+        comboGlow: '#ffee00',
+        streakColor: 'rgba(255, 220, 100, 0.35)',
+        groundPulse: 'rgba(255,220,100,0.5)'
+    },
+    {
+        name: 'THE FINAL DOMAIN',
+        subtitle: 'You have become DEATH',
+        sky: ['#ff00ff', '#aa00aa', '#550055', '#1a001a'],
+        sun: '#ff44ff',
+        mountains: '#2a0a2a',
+        ground: '#150515',
+        cloudColor: 'rgba(255,100,255,0.4)',
+        accent: '#ff00ff',
+        accentAlt: '#ff88ff',
+        killParticle: '#ff44ff',
+        comboGlow: '#ff00ff',
+        streakColor: 'rgba(255, 100, 255, 0.35)',
+        groundPulse: 'rgba(255,0,255,0.5)'
     }
-};
+];
+
+// Pre-parse zone colors to avoid regex parsing every frame (performance optimization)
+ZONES.forEach(zone => {
+    // Parse 'rgba(r, g, b, a)' into [r, g, b, a] array
+    const streakMatch = zone.streakColor.match(/[\d.]+/g);
+    zone.streakColorParsed = streakMatch.map(Number);
+
+    const pulseMatch = zone.groundPulse.match(/[\d.]+/g);
+    zone.groundPulseParsed = pulseMatch.map(Number);
+});
+
+// Zone progression: every 5 kills = new zone (faster progression, more reward moments)
+const KILLS_PER_ZONE = 5;
+
+// Get current zone data (exported for other modules)
+export function getCurrentZone() {
+    const zoneIndex = Math.min(Math.floor(state.player.kills / KILLS_PER_ZONE), ZONES.length - 1);
+    return ZONES[zoneIndex];
+}
+
+// Track current zone for transition detection
+let currentZoneIndex = 0;
+let zoneTransitionTimer = 0;
+let zoneTransitionText = '';
+let zoneTransitionSubtitle = '';
+
+// Reset zone state (called on game restart)
+export function resetZone() {
+    currentZoneIndex = 0;
+    zoneTransitionTimer = 0;
+    zoneTransitionText = '';
+    zoneTransitionSubtitle = '';
+}
 
 // Parallax cloud state (persists between frames)
 let clouds = [];
@@ -84,19 +230,37 @@ export function drawBackground() {
 
     initClouds();
 
-    // Determine environment based on score
-    let env;
-    if (player.feverMode) {
-        env = null; // Use special fever palette
-    } else if (player.score >= 800) {
-        env = ENVIRONMENTS.castle;
-    } else if (player.score >= 500) {
-        env = ENVIRONMENTS.forest;
-    } else if (player.score >= 200) {
-        env = ENVIRONMENTS.desert;
-    } else {
-        env = ENVIRONMENTS.sunset;
+    // Determine zone based on kills
+    const newZoneIndex = Math.min(Math.floor(player.kills / KILLS_PER_ZONE), ZONES.length - 1);
+
+    // Check for zone transition
+    if (newZoneIndex !== currentZoneIndex && player.kills > 0) {
+        currentZoneIndex = newZoneIndex;
+        const zone = ZONES[currentZoneIndex];
+        zoneTransitionTimer = 3.0; // 3 second display
+        zoneTransitionText = zone.name;
+        zoneTransitionSubtitle = zone.subtitle;
+
+        // Big screen effects for zone transition
+        state.screenShake = 15;
+        state.flashColor = zone.sun;
+        state.flashAlpha = 0.3;
+
+        // Spawn celebration particles
+        for (let i = 0; i < 30; i++) {
+            state.particles.push({
+                x: Math.random() * canvas.width,
+                y: canvas.height,
+                vx: (Math.random() - 0.5) * 4,
+                vy: -Math.random() * 10 - 5,
+                life: 1.5,
+                color: zone.sun
+            });
+        }
     }
+
+    // Get current zone (always need valid zone for color lookups)
+    const zone = ZONES[currentZoneIndex];
 
     // Beat pulse intensity
     const pulseIntensity = state.beatPulse * (player.feverMode ? 0.3 : 0.15);
@@ -111,10 +275,10 @@ export function drawBackground() {
         gradient.addColorStop(0.7, `rgb(${150}, ${30 + pulseIntensity * 30}, ${150 + pulseIntensity * 30})`);
         gradient.addColorStop(1, '#1a0a1a');
     } else {
-        gradient.addColorStop(0, env.sky[0]);
-        gradient.addColorStop(0.4, env.sky[1]);
-        gradient.addColorStop(0.7, env.sky[2]);
-        gradient.addColorStop(1, env.sky[3]);
+        gradient.addColorStop(0, zone.sky[0]);
+        gradient.addColorStop(0.4, zone.sky[1]);
+        gradient.addColorStop(0.7, zone.sky[2]);
+        gradient.addColorStop(1, zone.sky[3]);
     }
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -124,9 +288,7 @@ export function drawBackground() {
 
     // Parallax clouds (speed scales with BPM!)
     const bpmMultiplier = 0.5 + (state.bpm / STARTING_BPM) * 0.8; // Faster clouds at higher BPM
-    const cloudColor = player.feverMode ? 'rgba(255,100,255,0.3)' :
-        (env === ENVIRONMENTS.castle ? 'rgba(100,50,150,0.4)' :
-        (env === ENVIRONMENTS.forest ? 'rgba(100,150,100,0.3)' : 'rgba(255,200,150,0.4)'));
+    const cloudColor = player.feverMode ? 'rgba(255,100,255,0.3)' : zone.cloudColor;
     ctx.fillStyle = cloudColor;
     clouds.forEach(cloud => {
         // Draw cloud as overlapping circles
@@ -144,10 +306,15 @@ export function drawBackground() {
         }
     });
 
-    // Speed streaks at high BPM (appears after 80 BPM)
+    // Speed streaks at high BPM (appears after 80 BPM) - zone-colored
     if (state.bpm >= 80) {
         const streakIntensity = Math.min(1, (state.bpm - 80) / 40);
-        ctx.strokeStyle = player.feverMode ? `rgba(255, 100, 255, ${streakIntensity * 0.3})` : `rgba(255, 200, 100, ${streakIntensity * 0.2})`;
+        // Use pre-parsed zone streak color
+        const [sR, sG, sB, sA] = zone.streakColorParsed;
+        const streakAlpha = player.feverMode ? streakIntensity * 0.35 : sA * streakIntensity;
+        ctx.strokeStyle = player.feverMode
+            ? `rgba(255, 100, 255, ${streakAlpha})`
+            : `rgba(${sR}, ${sG}, ${sB}, ${streakAlpha})`;
         ctx.lineWidth = 1;
 
         const streakCount = Math.floor(1 + 7 * streakIntensity);
@@ -165,8 +332,8 @@ export function drawBackground() {
         }
     }
 
-    // Sun/moon (changes with environment)
-    const sunColor = player.feverMode ? '#ff66ff' : env.sun;
+    // Sun/moon (changes with zone)
+    const sunColor = player.feverMode ? '#ff66ff' : zone.sun;
     ctx.fillStyle = sunColor;
     ctx.beginPath();
     ctx.arc(canvas.width - 80, 60, 40 + (player.feverMode ? Math.sin(Date.now() / 80) * 5 : 0), 0, Math.PI * 2);
@@ -178,7 +345,7 @@ export function drawBackground() {
     ctx.arc(canvas.width - 80, 60, 55, 0, Math.PI * 2);
     ctx.fill();
 
-    // Fever sparkle particles
+    // Fever sparkle particles - zone-colored
     if (player.feverMode && Math.random() < 0.3) {
         state.particles.push({
             x: Math.random() * canvas.width,
@@ -186,12 +353,12 @@ export function drawBackground() {
             vx: (Math.random() - 0.5) * 2,
             vy: Math.random() * 2 + 1,
             life: 0.8,
-            color: Math.random() > 0.5 ? '#ff00ff' : '#ffff00'
+            color: Math.random() > 0.5 ? zone.accent : zone.comboGlow
         });
     }
 
-    // Silhouette mountains (color changes with environment)
-    const mountainColor = player.feverMode ? '#200a20' : env.mountains;
+    // Silhouette mountains (color changes with zone)
+    const mountainColor = player.feverMode ? '#200a20' : zone.mountains;
     ctx.fillStyle = mountainColor;
     ctx.beginPath();
     ctx.moveTo(0, canvas.height);
@@ -205,13 +372,18 @@ export function drawBackground() {
     ctx.fill();
 
     // Ground with beat pulse
-    const groundColor = player.feverMode ? '#150510' : env.ground;
+    const groundColor = player.feverMode ? '#150510' : zone.ground;
     ctx.fillStyle = groundColor;
     ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
 
-    // Ground beat pulse line
+    // Ground beat pulse line - zone-colored
     if (state.beatPulse > 0.1) {
-        ctx.strokeStyle = player.feverMode ? `rgba(255,0,255,${state.beatPulse * 0.5})` : `rgba(255,150,100,${state.beatPulse * 0.4})`;
+        // Use pre-parsed zone ground pulse color
+        const [pR, pG, pB, pA] = zone.groundPulseParsed;
+        const pulseAlpha = player.feverMode ? state.beatPulse * 0.6 : pA * state.beatPulse;
+        ctx.strokeStyle = player.feverMode
+            ? `rgba(255,0,255,${pulseAlpha})`
+            : `rgba(${pR},${pG},${pB},${pulseAlpha})`;
         ctx.lineWidth = 2 + state.beatPulse * 3;
         ctx.beginPath();
         ctx.moveTo(0, canvas.height - 40);
@@ -1112,6 +1284,16 @@ export function drawUI() {
     ctx.textAlign = 'right';
     ctx.fillText(`${player.score}`, canvas.width - 10, 25);
 
+    // Zone indicator (small, top center)
+    const zoneIndex = Math.min(Math.floor(player.kills / KILLS_PER_ZONE), ZONES.length - 1);
+    const zoneName = ZONES[zoneIndex].name;
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(zoneName, canvas.width / 2, 12);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fillText(`☠${player.kills}`, canvas.width / 2, 22);
+
     // BPM indicator (pulses with beat, color-coded by speed)
     const bpmIntensity = Math.min(1, (bpm - 60) / 50);
     const bpmRGB = bpm >= 100 ? '255, 68, 68' : (bpm >= 80 ? '255, 170, 0' : '68, 255, 136');
@@ -1129,32 +1311,40 @@ export function drawUI() {
         ctx.fill();
     }
 
-    // Combo (scales with combo count!)
+    // Combo (scales with combo count!) - zone-colored
     if (player.combo > 1) {
+        const zone = getCurrentZone();
         const comboScale = Math.min(2.5, 1 + player.combo * 0.1);
         const fontSize = Math.floor(12 * comboScale);
 
-        // Fever mode glow
+        // Parse zone combo glow for rgba usage
+        const comboGlowHex = zone.comboGlow;
+        const comboR = parseInt(comboGlowHex.slice(1,3), 16);
+        const comboG = parseInt(comboGlowHex.slice(3,5), 16);
+        const comboB = parseInt(comboGlowHex.slice(5,7), 16);
+
+        // Fever mode glow - uses zone accent
         if (player.feverMode) {
-            ctx.fillStyle = `rgba(255, 0, 255, ${0.3 + Math.sin(Date.now() / 100) * 0.2})`;
+            ctx.fillStyle = `rgba(${comboR}, ${comboG}, ${comboB}, ${0.4 + Math.sin(Date.now() / 100) * 0.2})`;
             ctx.beginPath();
             ctx.arc(canvas.width - 30, 38, 25 + Math.sin(Date.now() / 80) * 5, 0, Math.PI * 2);
             ctx.fill();
         } else if (player.combo >= 5) {
-            // Fire glow at 5+
-            ctx.fillStyle = `rgba(255, 100, 0, ${0.2 + Math.sin(Date.now() / 100) * 0.1})`;
+            // Fire glow at 5+ - zone-colored
+            ctx.fillStyle = `rgba(${comboR}, ${comboG}, ${comboB}, ${0.25 + Math.sin(Date.now() / 100) * 0.1})`;
             ctx.beginPath();
             ctx.arc(canvas.width - 30, 38, 20, 0, Math.PI * 2);
             ctx.fill();
         }
 
-        ctx.fillStyle = player.feverMode ? '#ff00ff' : (player.combo >= 10 ? '#ff8800' : '#ffff00');
+        // Combo text color intensifies with combo count
+        ctx.fillStyle = player.feverMode ? zone.accent : (player.combo >= 10 ? zone.accent : zone.comboGlow);
         ctx.font = `bold ${fontSize}px monospace`;
         ctx.fillText(`x${player.combo}`, canvas.width - 10, 42);
 
         // "FEVER!" label when in fever mode
         if (player.feverMode) {
-            ctx.fillStyle = '#ff00ff';
+            ctx.fillStyle = zone.accent;
             ctx.font = 'bold 10px monospace';
             ctx.fillText('FEVER!', canvas.width - 10, 55);
         }
@@ -1664,6 +1854,66 @@ export function drawEffects() {
         state.bigPromptAlpha -= 0.015;
     }
 
+    // EPIC ZONE TRANSITION ANNOUNCEMENT (Elden Ring style)
+    if (zoneTransitionTimer > 0) {
+        ctx.save();
+
+        // Cinematic black bars
+        const barHeight = 30;
+        const barAlpha = Math.min(1, zoneTransitionTimer);
+        ctx.fillStyle = `rgba(0, 0, 0, ${barAlpha * 0.8})`;
+        ctx.fillRect(0, 0, canvas.width, barHeight);
+        ctx.fillRect(0, canvas.height - barHeight, canvas.width, barHeight);
+
+        // Zone name with dramatic entrance
+        const textAlpha = Math.min(1, zoneTransitionTimer * 0.8);
+        const slideIn = Math.max(0, 1 - zoneTransitionTimer / 3) * 50;
+
+        // Gold/epic text styling
+        ctx.globalAlpha = textAlpha;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Zone name - large epic font
+        ctx.font = 'bold 28px monospace';
+        ctx.fillStyle = '#000000';
+        ctx.fillText(zoneTransitionText, canvas.width/2 + 2 + slideIn, canvas.height/2 - 10 + 2);
+        ctx.fillStyle = '#ffd700'; // Gold
+        ctx.fillText(zoneTransitionText, canvas.width/2 + slideIn, canvas.height/2 - 10);
+
+        // Subtitle - smaller italic
+        ctx.font = 'italic 12px monospace';
+        ctx.fillStyle = '#000000';
+        ctx.fillText(zoneTransitionSubtitle, canvas.width/2 + 1 + slideIn, canvas.height/2 + 15 + 1);
+        ctx.fillStyle = '#ccaa00';
+        ctx.fillText(zoneTransitionSubtitle, canvas.width/2 + slideIn, canvas.height/2 + 15);
+
+        // Decorative lines
+        ctx.strokeStyle = `rgba(255, 215, 0, ${textAlpha * 0.6})`;
+        ctx.lineWidth = 1;
+        const lineWidth = 80 + (1 - zoneTransitionTimer / 3) * 40;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2 - lineWidth + slideIn, canvas.height/2 - 30);
+        ctx.lineTo(canvas.width/2 + lineWidth + slideIn, canvas.height/2 - 30);
+        ctx.moveTo(canvas.width/2 - lineWidth + slideIn, canvas.height/2 + 30);
+        ctx.lineTo(canvas.width/2 + lineWidth + slideIn, canvas.height/2 + 30);
+        ctx.stroke();
+
+        ctx.restore();
+
+        // Decay timer
+        zoneTransitionTimer -= 0.016; // ~60fps
+    }
+
+    // Cap particle arrays to prevent memory leak (keep oldest, they're more important visually)
+    const MAX_PARTICLES = 200;
+    const MAX_FLOATING_TEXTS = 30;
+    const MAX_DEATH_GHOSTS = 10;
+
+    if (state.particles.length > MAX_PARTICLES) {
+        state.particles = state.particles.slice(-MAX_PARTICLES);
+    }
+
     // Update and filter particles
     state.particles = state.particles.filter(p => {
         ctx.fillStyle = p.color;
@@ -1678,6 +1928,11 @@ export function drawEffects() {
 
         return p.life > 0;
     });
+
+    // Cap floating texts
+    if (state.floatingTexts.length > MAX_FLOATING_TEXTS) {
+        state.floatingTexts = state.floatingTexts.slice(-MAX_FLOATING_TEXTS);
+    }
 
     // Update and filter floating text
     state.floatingTexts = state.floatingTexts.filter(t => {
@@ -1694,6 +1949,11 @@ export function drawEffects() {
 
         return t.alpha > 0;
     });
+
+    // Cap death ghosts
+    if (state.deathGhosts.length > MAX_DEATH_GHOSTS) {
+        state.deathGhosts = state.deathGhosts.slice(-MAX_DEATH_GHOSTS);
+    }
 
     // Update and draw death ghosts (dying enemies)
     state.deathGhosts = state.deathGhosts.filter(ghost => {
@@ -1798,39 +2058,48 @@ export function drawGameOver() {
     const { ctx, canvas } = dom;
     const { player, highScore, maxBpmReached } = state;
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.fillStyle = '#ff4444';
     ctx.font = 'bold 24px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 50);
+    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 65);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '16px monospace';
-    ctx.fillText(`Score: ${player.score}`, canvas.width/2, canvas.height/2 - 15);
+    ctx.fillText(`Score: ${player.score}`, canvas.width/2, canvas.height/2 - 35);
 
-    // Max BPM stat
+    // Zone reached (Elden Ring style)
+    const zoneIndex = Math.min(Math.floor(player.kills / KILLS_PER_ZONE), ZONES.length - 1);
+    const zoneName = ZONES[zoneIndex].name;
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '10px monospace';
+    ctx.fillText(`Reached: ${zoneName}`, canvas.width/2, canvas.height/2 - 15);
+
+    // Stats row
+    ctx.font = '11px monospace';
     const bpmColor = maxBpmReached >= 100 ? '#ff4444' : (maxBpmReached >= 80 ? '#ffaa00' : '#44ff88');
     ctx.fillStyle = bpmColor;
-    ctx.font = '12px monospace';
-    ctx.fillText(`Max Tempo: ♪${Math.round(maxBpmReached)}`, canvas.width/2, canvas.height/2 + 8);
+    ctx.fillText(`♪${Math.round(maxBpmReached)} BPM`, canvas.width/2 - 50, canvas.height/2 + 5);
+    ctx.fillStyle = '#ff6666';
+    ctx.fillText(`☠${player.kills} kills`, canvas.width/2 + 50, canvas.height/2 + 5);
 
     // High score
     const isNewHighScore = player.score > highScore;
     if (isNewHighScore) {
         ctx.fillStyle = '#ffff00';
         ctx.font = 'bold 14px monospace';
-        ctx.fillText('NEW HIGH SCORE!', canvas.width/2, canvas.height/2 + 32);
+        ctx.fillText('NEW HIGH SCORE!', canvas.width/2, canvas.height/2 + 30);
     } else {
         ctx.fillStyle = '#888888';
         ctx.font = '12px monospace';
-        ctx.fillText(`Best: ${highScore}`, canvas.width/2, canvas.height/2 + 32);
+        ctx.fillText(`Best: ${highScore}`, canvas.width/2, canvas.height/2 + 30);
     }
 
     ctx.fillStyle = '#666666';
     ctx.font = '12px monospace';
-    ctx.fillText('Tap to restart', canvas.width/2, canvas.height/2 + 60);
+    ctx.fillText('Tap to restart', canvas.width/2, canvas.height/2 + 55);
 
     ctx.textAlign = 'left';
 }
