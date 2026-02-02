@@ -200,6 +200,7 @@ let currentZoneIndex = 0;
 let zoneTransitionTimer = 0;
 let zoneTransitionText = '';
 let zoneTransitionSubtitle = '';
+let showStartingZoneIntro = true; // Flag to show zone 1 intro on game start (true by default for first play)
 
 // Reset zone state (called on game restart)
 export function resetZone() {
@@ -207,6 +208,12 @@ export function resetZone() {
     zoneTransitionTimer = 0;
     zoneTransitionText = '';
     zoneTransitionSubtitle = '';
+    showStartingZoneIntro = true; // Trigger zone 1 intro on next frame
+}
+
+// Check if zone transition is currently showing (used to suppress other prompts)
+export function isZoneTransitionActive() {
+    return zoneTransitionTimer > 0;
 }
 
 // Parallax cloud state (persists between frames)
@@ -233,7 +240,33 @@ export function drawBackground() {
     // Determine zone based on kills
     const newZoneIndex = Math.min(Math.floor(player.kills / KILLS_PER_ZONE), ZONES.length - 1);
 
-    // Check for zone transition
+    // Starting zone intro (Elden Ring style "area discovered" for zone 1)
+    if (showStartingZoneIntro && state.gameState === 'playing') {
+        showStartingZoneIntro = false;
+        const startZone = ZONES[0];
+        zoneTransitionTimer = 3.5; // Slightly longer for dramatic effect
+        zoneTransitionText = startZone.name;
+        zoneTransitionSubtitle = startZone.subtitle;
+
+        // Dramatic entrance effects
+        state.screenShake = 8;
+        state.flashColor = startZone.sun;
+        state.flashAlpha = 0.2;
+
+        // Rising dust/embers from ground
+        for (let i = 0; i < 20; i++) {
+            state.particles.push({
+                x: Math.random() * canvas.width,
+                y: canvas.height - 40 + Math.random() * 20,
+                vx: (Math.random() - 0.5) * 2,
+                vy: -Math.random() * 4 - 2,
+                life: 2.0,
+                color: startZone.accent
+            });
+        }
+    }
+
+    // Check for zone transition (zones 2+)
     if (newZoneIndex !== currentZoneIndex && player.kills > 0) {
         currentZoneIndex = newZoneIndex;
         const zone = ZONES[currentZoneIndex];
@@ -490,6 +523,12 @@ export function drawWarrior() {
     // Breathing animation (slower, subtle)
     const breathe = Math.sin(Date.now() / 800) * 2;
 
+    // Weight shift (slower cycle for natural feel)
+    const weightShift = Math.sin(Date.now() / 2000) * 1.5;
+
+    // Subtle head look (watches for enemies)
+    const headLook = Math.sin(Date.now() / 1500) * 0.08;
+
     // Victory animation timer decay
     if (player.victoryTimer > 0) {
         player.victoryTimer -= 0.016; // ~60fps
@@ -520,9 +559,11 @@ export function drawWarrior() {
     let bodyLean = 0; // Rotation
     let squashX = 1, squashY = 1;
 
-    // Apply beat bob when idle
+    // Apply beat bob when idle with weight shift
     if (player.stance === 'idle' && player.damageTimer <= 0) {
         y -= beatBob + breathe;
+        x += weightShift; // Subtle side-to-side weight shift
+        bodyLean = headLook; // Slight body sway matching head look
     }
 
     // Damage recoil - knockback and lean
@@ -808,6 +849,34 @@ export function drawWarrior() {
         ctx.shadowBlur = 0;
     }
 
+    // Slash arc for aggressive stance (normal attack)
+    if (player.stance === 'aggressive') {
+        // Sweeping arc trail
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 20, 35, -0.3, 1.2);
+        ctx.stroke();
+
+        // Inner arc (fading)
+        ctx.strokeStyle = 'rgba(255, 220, 150, 0.3)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 20, 32, 0, 1.0);
+        ctx.stroke();
+
+        // Speed lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+            const angle = 0.2 + i * 0.25;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(angle) * 25, 20 + Math.sin(angle) * 25);
+            ctx.lineTo(Math.cos(angle) * 40, 20 + Math.sin(angle) * 40);
+            ctx.stroke();
+        }
+    }
+
     // Motion trails for triple attack
     if (player.stance === 'triple') {
         ctx.strokeStyle = '#ff884466';
@@ -818,6 +887,22 @@ export function drawWarrior() {
             ctx.lineTo(-8 - i * 6, 50 + i * 5);
             ctx.stroke();
         }
+    }
+
+    // Charge attack wind-up effect
+    if (player.stance === 'charge') {
+        // Glowing power arcs
+        ctx.strokeStyle = 'rgba(68, 136, 255, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 35, 20, -1.5, 0.5);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(136, 200, 255, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 35, 28, -1.2, 0.2);
+        ctx.stroke();
     }
 
     ctx.restore(); // End front arm transform
@@ -866,6 +951,12 @@ export function drawWarrior() {
 
     // ====== HEAD/HELMET (Great Helm style) ======
     const headY = y - 48 - chargeLevel * 5;
+    // Head offset for looking around during idle
+    const headOffsetX = (player.stance === 'idle' && player.damageTimer <= 0) ? headLook * 15 : 0;
+
+    // Apply head offset for idle look animation
+    ctx.save();
+    ctx.translate(headOffsetX, 0);
 
     // Helmet main shape (flat-topped great helm)
     ctx.fillStyle = armorDark;
@@ -1025,6 +1116,8 @@ export function drawWarrior() {
         ctx.shadowBlur = 0;
     }
 
+    ctx.restore(); // End head offset transform
+
     ctx.restore(); // End body transform
 
     // ====== WEAPON TRAIL (outside transform for screen-space effect) ======
@@ -1064,6 +1157,19 @@ export function drawEnemy() {
     // Base position
     let x = enemy.x;
     let y = enemy.y;
+
+    // Spawn approach dust when enemy is moving toward position
+    if (enemy.x > enemy.targetX && Math.random() < 0.3) {
+        // Footstep dust from ground
+        state.particles.push({
+            x: enemy.x + (Math.random() - 0.5) * 20,
+            y: canvas.height - 42 + Math.random() * 5,
+            vx: -1 - Math.random() * 2, // Dust trails behind
+            vy: -Math.random() * 1.5,
+            life: 0.5,
+            color: 'rgba(136, 119, 102, 0.5)' // Dusty brown, semi-transparent
+        });
+    }
 
     // ANIMATION: Idle bobbing (gentle sine wave)
     const bobSpeed = enemy.type === 'giant' ? 800 : (enemy.type === 'armored' ? 1200 : 600);
@@ -1427,10 +1533,31 @@ export function drawUI() {
         hitZoneColor = enemyColors[enemy.type] || '#ffffff';
     }
 
-    // Outer glow when active
+    // Beat-synced radial glow (always visible, pulses on beat)
+    if (beatPulse > 0.1) {
+        const glowRadius = 25 + beatPulse * 20;
+        const gradient = ctx.createRadialGradient(hitZoneX, trackY, 0, hitZoneX, trackY, glowRadius);
+        gradient.addColorStop(0, `${hitZoneColor}${Math.floor(beatPulse * 80).toString(16).padStart(2, '0')}`);
+        gradient.addColorStop(0.5, `${hitZoneColor}${Math.floor(beatPulse * 40).toString(16).padStart(2, '0')}`);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(hitZoneX, trackY, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Outer glow when active (input window)
     if (phase === 1) {
         ctx.fillStyle = `${hitZoneColor}33`;
         ctx.fillRect(hitZoneX - hitZoneWidth/2 - 8, trackY - trackHeight/2 - 4, hitZoneWidth + 16, trackHeight + 8);
+
+        // Extra "ready" pulse rings during input phase
+        const ringPulse = (Date.now() % 500) / 500;
+        ctx.strokeStyle = `${hitZoneColor}${Math.floor((1 - ringPulse) * 60).toString(16).padStart(2, '0')}`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(hitZoneX, trackY, 15 + ringPulse * 25, 0, Math.PI * 2);
+        ctx.stroke();
     }
 
     // Hit zone fill
@@ -2027,15 +2154,29 @@ export function drawCRT() {
         ctx.fillRect(0, y, canvas.width, 1);
     }
 
-    // Subtle vignette
+    // Dynamic vignette - intensifies at low health
+    const lives = state.player.lives;
+    const dangerIntensity = lives === 1 ? 0.6 : (lives === 2 ? 0.5 : 0.4);
+    const dangerColor = lives === 1 ? '80, 0, 0' : '0, 0, 0'; // Red tint at 1 HP
+    const innerRadius = lives === 1 ? 0.2 : 0.3; // Smaller safe zone at low HP
+
     const vignette = ctx.createRadialGradient(
-        canvas.width/2, canvas.height/2, canvas.height * 0.3,
+        canvas.width/2, canvas.height/2, canvas.height * innerRadius,
         canvas.width/2, canvas.height/2, canvas.height * 0.8
     );
     vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
+    vignette.addColorStop(0.7, `rgba(${dangerColor}, ${dangerIntensity * 0.3})`);
+    vignette.addColorStop(1, `rgba(${dangerColor}, ${dangerIntensity})`);
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Heartbeat edge pulse at 1 HP
+    if (lives === 1) {
+        const heartbeat = Math.sin(Date.now() / 150) * 0.5 + 0.5;
+        ctx.strokeStyle = `rgba(255, 0, 0, ${heartbeat * 0.3})`;
+        ctx.lineWidth = 3 + heartbeat * 4;
+        ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+    }
 
     // Chromatic aberration on hits
     if (state.chromaOffset > 0.5) {

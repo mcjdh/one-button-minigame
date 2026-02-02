@@ -16,7 +16,7 @@ import {
 } from './constants.js';
 import { state, dom } from './state.js';
 import { initAudio, audioCtx, scheduleBeat, playSFX, playEnemyStinger, startTitleMusic, stopTitleMusic } from './audio.js';
-import { drawBackground, drawWarrior, drawEnemy, drawUI, drawEffects, drawCRT, drawGameOver, showBigPrompt, spawnParticles, resetZone } from './render.js';
+import { drawBackground, drawWarrior, drawEnemy, drawUI, drawEffects, drawCRT, drawGameOver, showBigPrompt, spawnParticles, resetZone, isZoneTransitionActive } from './render.js';
 import { spawnEnemy, resolveClash } from './combat.js';
 import { updateCharge, setupInputListeners, resetFirstTap } from './input.js';
 
@@ -241,7 +241,7 @@ function advancePhase() {
                 }
             }
 
-            // Play announcement for current enemy
+            // Play announcement for current enemy (suppress during zone transitions)
             if (state.enemy && state.enemy.alive) {
                 playEnemyStinger(state.enemy.type);
 
@@ -249,25 +249,28 @@ function advancePhase() {
                 const isReturning = state.enemy.announced;
                 state.enemy.announced = true;
 
-                if (isReturning) {
-                    showBigPrompt('AGAIN!', '#ffaa00');
-                } else if (state.enemy.type === 'swordsman') {
-                    showBigPrompt('SWORDSMAN!', '#ff4444');
-                } else if (state.enemy.type === 'archer') {
-                    showBigPrompt('ARCHER!', '#44ff44');
-                } else if (state.enemy.type === 'armored') {
-                    showBigPrompt('ARMORED!', '#4488ff');
-                } else if (state.enemy.type === 'giant') {
-                    showBigPrompt('GIANT!', '#ff8844');
-                } else if (state.enemy.type === 'mage') {
-                    showBigPrompt('MAGE!', '#ff44aa');
+                // Only show text prompts if zone transition isn't active
+                if (!isZoneTransitionActive()) {
+                    if (isReturning) {
+                        showBigPrompt('AGAIN!', '#ffaa00');
+                    } else if (state.enemy.type === 'swordsman') {
+                        showBigPrompt('SWORDSMAN!', '#ff4444');
+                    } else if (state.enemy.type === 'archer') {
+                        showBigPrompt('ARCHER!', '#44ff44');
+                    } else if (state.enemy.type === 'armored') {
+                        showBigPrompt('ARMORED!', '#4488ff');
+                    } else if (state.enemy.type === 'giant') {
+                        showBigPrompt('GIANT!', '#ff8844');
+                    } else if (state.enemy.type === 'mage') {
+                        showBigPrompt('MAGE!', '#ff44aa');
+                    }
                 }
             }
             break;
 
         case 1: // Choose stance (input window)
-            // Show control hint based on enemy type
-            if (state.enemy && state.enemy.alive) {
+            // Show control hint based on enemy type (suppress during zone transitions)
+            if (state.enemy && state.enemy.alive && !isZoneTransitionActive()) {
                 if (state.enemy.type === 'swordsman') {
                     showBigPrompt('TAP!', '#ffff00');
                 } else if (state.enemy.type === 'archer') {
