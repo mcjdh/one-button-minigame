@@ -1,0 +1,20 @@
+{
+  "name": "one-button-warrior",
+  "version": "1.0.0",
+  "description": "A rhythm combat game where you defeat enemies with one button - tap, double-tap, or hold to match the beat. Built for Tiny Game Jam #30.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "dev": "npx live-server --port=8080"
+  },
+  "keywords": [
+    "game",
+    "rhythm",
+    "one-button",
+    "game-jam",
+    "patapon",
+    "canvas"
+  ],
+  "author": "",
+  "license": "MIT"
+}
