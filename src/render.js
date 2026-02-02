@@ -240,6 +240,254 @@ function initClouds() {
     }
 }
 
+// Weather particle system (zone-specific ambient effects)
+let weatherParticles = [];
+const MAX_WEATHER_PARTICLES = 40;
+
+function spawnWeatherParticle(canvas, bgType) {
+    if (weatherParticles.length >= MAX_WEATHER_PARTICLES) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    let particle = null;
+
+    switch (bgType) {
+        case 'plains':
+            // Floating leaves/seeds
+            particle = {
+                x: Math.random() * w,
+                y: -10,
+                vx: -0.5 - Math.random() * 0.5,
+                vy: 0.8 + Math.random() * 0.4,
+                size: 3 + Math.random() * 2,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.1,
+                color: Math.random() > 0.5 ? 'rgba(180,140,60,0.6)' : 'rgba(200,160,80,0.5)',
+                type: 'leaf'
+            };
+            break;
+
+        case 'wastes':
+            // Blood drips / red dust
+            particle = {
+                x: Math.random() * w,
+                y: -5,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: 1.5 + Math.random() * 1,
+                size: 2 + Math.random() * 2,
+                color: `rgba(${150 + Math.random() * 50}, 20, 20, ${0.4 + Math.random() * 0.3})`,
+                type: 'drip'
+            };
+            break;
+
+        case 'swamp':
+            // Rising bubbles / spores
+            particle = {
+                x: Math.random() * w,
+                y: h - 40,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: -0.5 - Math.random() * 0.5,
+                size: 2 + Math.random() * 3,
+                color: `rgba(100, ${180 + Math.random() * 50}, 80, ${0.3 + Math.random() * 0.2})`,
+                type: 'bubble',
+                wobble: Math.random() * Math.PI * 2
+            };
+            break;
+
+        case 'ice':
+            // Snowflakes
+            particle = {
+                x: Math.random() * w,
+                y: -5,
+                vx: -0.3 - Math.random() * 0.5,
+                vy: 0.6 + Math.random() * 0.4,
+                size: 2 + Math.random() * 3,
+                color: `rgba(255, 255, 255, ${0.5 + Math.random() * 0.3})`,
+                type: 'snow',
+                wobble: Math.random() * Math.PI * 2
+            };
+            break;
+
+        case 'graveyard':
+            // Ash / floating dust
+            particle = {
+                x: Math.random() * w,
+                y: -5,
+                vx: -0.2 - Math.random() * 0.3,
+                vy: 0.3 + Math.random() * 0.3,
+                size: 1.5 + Math.random() * 2,
+                color: `rgba(${120 + Math.random() * 40}, ${120 + Math.random() * 40}, ${120 + Math.random() * 40}, ${0.3 + Math.random() * 0.2})`,
+                type: 'ash',
+                wobble: Math.random() * Math.PI * 2
+            };
+            break;
+
+        case 'volcanic':
+            // Embers rising
+            particle = {
+                x: Math.random() * w,
+                y: h - 40,
+                vx: (Math.random() - 0.5) * 1,
+                vy: -1 - Math.random() * 1.5,
+                size: 2 + Math.random() * 2,
+                color: `rgba(255, ${100 + Math.random() * 100}, 0, ${0.6 + Math.random() * 0.3})`,
+                type: 'ember',
+                life: 1
+            };
+            break;
+
+        case 'void':
+            // Strange floating particles (drift in all directions)
+            particle = {
+                x: Math.random() * w,
+                y: Math.random() * (h - 60),
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (Math.random() - 0.5) * 0.8,
+                size: 1.5 + Math.random() * 2,
+                color: `rgba(${150 + Math.random() * 50}, ${80 + Math.random() * 50}, 255, ${0.4 + Math.random() * 0.3})`,
+                type: 'void',
+                pulse: Math.random() * Math.PI * 2
+            };
+            break;
+
+        case 'paradise':
+            // Golden sparkles drifting down
+            particle = {
+                x: Math.random() * w,
+                y: -5,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: 0.4 + Math.random() * 0.3,
+                size: 2 + Math.random() * 2,
+                color: `rgba(255, ${200 + Math.random() * 55}, ${50 + Math.random() * 50}, ${0.5 + Math.random() * 0.3})`,
+                type: 'sparkle',
+                pulse: Math.random() * Math.PI * 2
+            };
+            break;
+
+        case 'final':
+            // Pulsing energy particles
+            particle = {
+                x: Math.random() * w,
+                y: Math.random() * (h - 60),
+                vx: (Math.random() - 0.5) * 1.2,
+                vy: (Math.random() - 0.5) * 1.2,
+                size: 2 + Math.random() * 3,
+                color: `rgba(255, ${Math.random() * 100}, 255, ${0.4 + Math.random() * 0.3})`,
+                type: 'energy',
+                pulse: Math.random() * Math.PI * 2
+            };
+            break;
+    }
+
+    if (particle) {
+        weatherParticles.push(particle);
+    }
+}
+
+function updateAndDrawWeather(ctx, canvas, bgType, isFever) {
+    // Don't draw weather in fever mode (too busy)
+    if (isFever) {
+        weatherParticles = [];
+        return;
+    }
+
+    const h = canvas.height;
+    const w = canvas.width;
+
+    // Spawn new particles
+    const spawnChance = bgType === 'void' || bgType === 'final' ? 0.15 : 0.1;
+    if (Math.random() < spawnChance) {
+        spawnWeatherParticle(canvas, bgType);
+    }
+
+    // Update and draw particles
+    for (let i = weatherParticles.length - 1; i >= 0; i--) {
+        const p = weatherParticles[i];
+
+        // Update position
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Type-specific updates
+        if (p.wobble !== undefined) {
+            p.wobble += 0.05;
+            p.x += Math.sin(p.wobble) * 0.3;
+        }
+        if (p.rotation !== undefined) {
+            p.rotation += p.rotSpeed;
+        }
+        if (p.pulse !== undefined) {
+            p.pulse += 0.1;
+        }
+        if (p.life !== undefined) {
+            p.life -= 0.01;
+            if (p.life <= 0) {
+                weatherParticles.splice(i, 1);
+                continue;
+            }
+        }
+
+        // Remove if off screen
+        if (p.y > h || p.y < -20 || p.x < -20 || p.x > w + 20) {
+            weatherParticles.splice(i, 1);
+            continue;
+        }
+
+        // Draw based on type
+        ctx.fillStyle = p.color;
+
+        if (p.type === 'leaf') {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.size, p.size * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        } else if (p.type === 'snow' || p.type === 'ash') {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (p.type === 'bubble') {
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (p.type === 'drip') {
+            ctx.beginPath();
+            ctx.ellipse(p.x, p.y, p.size * 0.5, p.size, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (p.type === 'ember') {
+            const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2);
+            glow.addColorStop(0, p.color);
+            glow.addColorStop(1, 'rgba(255,100,0,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (p.type === 'sparkle' || p.type === 'energy' || p.type === 'void') {
+            const pulseSize = p.size * (0.8 + Math.sin(p.pulse) * 0.4);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, pulseSize, 0, Math.PI * 2);
+            ctx.fill();
+            // Extra glow for energy
+            if (p.type === 'energy') {
+                ctx.fillStyle = 'rgba(255,100,255,0.2)';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, pulseSize * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else {
+            // Default circle
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}
+
 // ============================================
 // ZONE-SPECIFIC BACKGROUND SILHOUETTES
 // ============================================
@@ -788,6 +1036,9 @@ export function drawBackground() {
         ctx.lineTo(canvas.width, canvas.height - 40);
         ctx.stroke();
     }
+
+    // Zone-specific weather effects
+    updateAndDrawWeather(ctx, canvas, zone.bgType, player.feverMode);
 }
 
 // ============================================
@@ -971,6 +1222,15 @@ export function drawWarrior() {
     // ====== RENDERING ======
 
     ctx.save();
+
+    // Damage invincibility flicker effect
+    if (player.damageTimer > 0) {
+        // Flicker rapidly (skip every other frame based on time)
+        const flickerOn = Math.floor(Date.now() / 50) % 2 === 0;
+        if (!flickerOn) {
+            ctx.globalAlpha = 0.3; // Ghost effect when flickering "off"
+        }
+    }
 
     // Apply body lean rotation
     ctx.translate(x, y);
@@ -2594,7 +2854,21 @@ export function drawGameOver() {
     // High score
     const isNewHighScore = player.score > highScore;
     if (isNewHighScore) {
-        ctx.fillStyle = '#ffff00';
+        // Celebratory glow effect
+        const pulse = Math.sin(Date.now() / 150) * 0.5 + 0.5;
+        const glowSize = 40 + pulse * 20;
+        const gradient = ctx.createRadialGradient(
+            canvas.width/2, canvas.height/2 + 25, 0,
+            canvas.width/2, canvas.height/2 + 25, glowSize
+        );
+        gradient.addColorStop(0, `rgba(255, 215, 0, ${0.3 + pulse * 0.2})`);
+        gradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(canvas.width/2 - 80, canvas.height/2 + 5, 160, 40);
+
+        // Rainbow cycle for extra celebration
+        const hue = (Date.now() / 20) % 360;
+        ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
         ctx.font = 'bold 14px monospace';
         ctx.fillText('NEW HIGH SCORE!', canvas.width/2, canvas.height/2 + 30);
     } else {

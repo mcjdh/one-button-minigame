@@ -475,6 +475,19 @@ export function playSFX(type) {
             setTimeout(() => playPulse(NOTES.G5, 0.1, 0.25, 0.4), 160);
             setTimeout(() => playPulse(NOTES.C5 * 2, 0.2, 0.25, 0.5), 240);
             break;
+        case 'perfect':
+            // Bright satisfying chime for perfect timing
+            playTone(NOTES.C5 * 2, 0.08, 'sine', 0.3);
+            playTone(NOTES.E5 * 2, 0.12, 'sine', 0.25);
+            break;
+        case 'great':
+            // Pleasant mid-tone for great timing
+            playTone(NOTES.G4, 0.1, 'sine', 0.2);
+            break;
+        case 'ok':
+            // Neutral low tone for OK timing
+            playTone(NOTES.C4, 0.08, 'triangle', 0.15);
+            break;
     }
 }
 

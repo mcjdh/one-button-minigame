@@ -132,9 +132,6 @@ function update() {
 
     // Remove markers that have passed or been hit
     state.beatMarkers = state.beatMarkers.filter(m => m.x > -50 && !m.hit);
-
-    // Screen shake decay
-    if (state.screenShake > 0) state.screenShake *= 0.9;
 }
 
 // ============================================
@@ -410,6 +407,13 @@ function gameLoop() {
     update();
     render();
     schedulerTick();
+
+    // Screen shake decay (runs regardless of game state - fixes game over shake bug)
+    if (state.screenShake > 0) {
+        state.screenShake *= 0.85; // Faster decay
+        if (state.screenShake < 0.5) state.screenShake = 0;
+    }
+
     requestAnimationFrame(gameLoop);
 }
 

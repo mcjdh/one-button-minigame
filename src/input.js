@@ -258,13 +258,22 @@ function showTimingFeedback(dist, color) {
         timingColor = '#ffff00';
         state.screenShake = Math.max(state.screenShake, 4);
         spawnParticles(state.hitZoneX, dom.canvas.height - 35, 8, '#ffff00');
+        // Golden screen flash for perfect timing
+        state.flashColor = '#ffff00';
+        state.flashAlpha = 0.15;
+        playSFX('perfect');
     } else if (dist < 55) {
         timingText = 'GREAT!';
         timingColor = '#88ff88';
         state.screenShake = Math.max(state.screenShake, 2);
+        // Subtle green flash for great timing
+        state.flashColor = '#44ff44';
+        state.flashAlpha = 0.08;
+        playSFX('great');
     } else {
         timingText = 'OK';
         timingColor = '#aaaaaa';
+        playSFX('ok');
     }
     showText(timingText, state.hitZoneX, dom.canvas.height - 55, timingColor);
 }
