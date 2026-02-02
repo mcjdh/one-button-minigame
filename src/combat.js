@@ -8,7 +8,7 @@ import {
     MAGE_INTRO_SCORE, MAGE_INTRO_BAR
 } from './constants.js';
 import { state, dom } from './state.js';
-import { playSFX } from './audio.js';
+import { playSFX, playGameOverJingle, playCrash } from './audio.js';
 import { showText, showBigPrompt, spawnParticles } from './render.js';
 
 // ============================================
@@ -157,6 +157,7 @@ export function resolveClash() {
             state.flashAlpha = 1;
             showText('SMASH!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#4488ff');
             playSFX('smash');
+            playCrash(); // Big crash cymbal!
             spawnParticles(enemy.x, enemy.y, 25, enemy.color);
             // Extra ground particles
             for (let i = 0; i < 10; i++) {
@@ -202,6 +203,7 @@ export function resolveClash() {
             const killText = OVERKILL_TEXTS[Math.floor(Math.random() * OVERKILL_TEXTS.length)];
             showText(killText, dom.canvas.width/2, dom.canvas.height/2 - 30, '#ff00ff');
             playSFX('crit');
+            playCrash(); // Crash cymbal for overkill!
             spawnParticles(enemy.x, enemy.y, 20, enemy.color);
         } else if (roll < 0.3 + feverBonus || player.feverMode) {
             // Critical! (guaranteed in fever mode)
@@ -331,6 +333,8 @@ export function takeDamage() {
         // Extra death effects
         state.screenShake = 25;
         state.hitStop = 15;
+        // Play game over jingle
+        playGameOverJingle();
         // Save high score
         if (player.score > state.highScore) {
             state.highScore = player.score;
@@ -368,7 +372,10 @@ export function checkComboMilestone() {
             }
 
             // Special SFX for big milestones
-            if (m >= 10) playSFX('fever');
+            if (m >= 10) {
+                playSFX('fever');
+                playCrash(); // Crash cymbal for milestone!
+            }
             break;
         }
     }

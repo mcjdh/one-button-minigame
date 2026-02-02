@@ -17,7 +17,7 @@ import {
     MISS_TEXTS
 } from './constants.js';
 import { state, dom } from './state.js';
-import { initAudio, audioCtx, scheduleBeat, playSFX } from './audio.js';
+import { initAudio, audioCtx, scheduleBeat, playSFX, playEnemyStinger, startTitleMusic, stopTitleMusic } from './audio.js';
 import { drawBackground, drawWarrior, drawEnemy, drawUI, drawEffects, drawCRT, drawGameOver, showBigPrompt, spawnParticles } from './render.js';
 import { spawnEnemy, resolveClash } from './combat.js';
 import { updateCharge, setupInputListeners, resetFirstTap } from './input.js';
@@ -47,6 +47,7 @@ function init() {
 // ============================================
 export function startGame() {
     initAudio();
+    stopTitleMusic(); // Stop title music if playing from game over
     dom.startOverlay.classList.add('hidden');
     state.gameState = 'playing';
     state.nextBeatTime = audioCtx.currentTime + 0.1;
@@ -194,6 +195,8 @@ function advancePhase() {
             resetFirstTap(); // Clear any stale double-tap state
             if (!state.enemy || !state.enemy.alive) {
                 spawnEnemy();
+                // Play enemy-specific audio stinger
+                playEnemyStinger(state.enemy.type);
                 // WarioWare-style enemy announcement
                 if (state.enemy.type === 'swordsman') {
                     showBigPrompt('SWORDSMAN!', '#ff4444');
@@ -207,7 +210,8 @@ function advancePhase() {
                     showBigPrompt('MAGE!', '#ff44aa');
                 }
             } else {
-                // Enemy returning
+                // Enemy returning - play stinger again
+                playEnemyStinger(state.enemy.type);
                 showBigPrompt('AGAIN!', '#ffaa00');
             }
 
