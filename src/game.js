@@ -9,13 +9,16 @@ import {
     TEMPO_UP_INTERVAL,
     FEVER_COMBO_THRESHOLD,
     TRACK_DISTANCE,
-    FRAMES_PER_SECOND
+    FRAMES_PER_SECOND,
+    DOUBLE_TAP_SPACING,
+    HOLD_TAIL_LENGTH,
+    MISS_TEXTS
 } from './constants.js';
 import { state, dom } from './state.js';
 import { initAudio, audioCtx, scheduleBeat, playSFX } from './audio.js';
 import { drawBackground, drawWarrior, drawEnemy, drawUI, drawEffects, drawCRT, drawGameOver, showBigPrompt, spawnParticles } from './render.js';
 import { spawnEnemy, resolveClash } from './combat.js';
-import { updateCharge, setupInputListeners } from './input.js';
+import { updateCharge, setupInputListeners, resetFirstTap } from './input.js';
 
 // ============================================
 // INITIALIZATION
@@ -177,6 +180,7 @@ function advancePhase() {
     switch (state.phase) {
         case 0: // Enemy appears
             state.player.stance = 'idle';
+            resetFirstTap(); // Clear any stale double-tap state
             if (!state.enemy || !state.enemy.alive) {
                 spawnEnemy();
                 // WarioWare-style enemy announcement
@@ -196,15 +200,15 @@ function advancePhase() {
             const markerType = state.enemy ? state.enemy.counter : 'aggressive';
 
             if (markerType === 'defensive') {
-                // DOUBLE TAP: Two markers close together
+                // DOUBLE TAP: Two markers - first arrives first, second follows
                 state.beatMarkers.push({
-                    x: canvas.width + 50,
+                    x: canvas.width + 20, // First marker (arrives first)
                     type: markerType,
                     hit: false,
                     isSecond: false
                 });
                 state.beatMarkers.push({
-                    x: canvas.width + 20, // Second marker slightly behind
+                    x: canvas.width + 20 + DOUBLE_TAP_SPACING, // Second marker (arrives after)
                     type: markerType,
                     hit: false,
                     isSecond: true
@@ -215,7 +219,7 @@ function advancePhase() {
                     x: canvas.width + 20,
                     type: markerType,
                     hit: false,
-                    tailLength: 80 // Length of the hold tail
+                    tailLength: HOLD_TAIL_LENGTH
                 });
             } else {
                 // SINGLE TAP: Normal marker
@@ -243,17 +247,38 @@ function advancePhase() {
         case 2: // Clash
             if (state.player.stance === 'idle') {
                 state.player.stance = 'stumble';
-                showBigPrompt('TOO SLOW!', '#ff0000');
+                const missText = MISS_TEXTS[Math.floor(Math.random() * MISS_TEXTS.length)];
+                showBigPrompt(missText, '#ff0000');
                 playSFX('miss');
-                // Miss particles burst from hit zone
-                for (let i = 0; i < 10; i++) {
+
+                // JUICE: Screen effects
+                state.screenShake = 8;
+                state.flashColor = '#ff0000';
+                state.flashAlpha = 0.4;
+                state.hitStop = 4;
+
+                // Big X burst from hit zone
+                for (let i = 0; i < 20; i++) {
+                    const angle = (i / 20) * Math.PI * 2;
                     state.particles.push({
                         x: state.hitZoneX,
                         y: canvas.height - 35,
-                        vx: (Math.random() - 0.5) * 8,
-                        vy: (Math.random() - 0.5) * 8,
-                        life: 0.6,
-                        color: '#ff0000'
+                        vx: Math.cos(angle) * 6 + (Math.random() - 0.5) * 3,
+                        vy: Math.sin(angle) * 6 + (Math.random() - 0.5) * 3,
+                        life: 0.8,
+                        color: i % 2 === 0 ? '#ff0000' : '#ff4444'
+                    });
+                }
+
+                // Debris from ground
+                for (let i = 0; i < 8; i++) {
+                    state.particles.push({
+                        x: state.hitZoneX + (Math.random() - 0.5) * 40,
+                        y: canvas.height - 40,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: -Math.random() * 6 - 2,
+                        life: 1,
+                        color: '#333333'
                     });
                 }
             }

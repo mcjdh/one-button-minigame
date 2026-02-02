@@ -1,7 +1,7 @@
 // ============================================
 // COMBAT SYSTEM
 // ============================================
-import { ENEMY_TYPES, KILL_TEXTS, CRIT_TEXTS, OVERKILL_TEXTS, ARMORED_INTRO_SCORE, ARMORED_GUARANTEE_BAR } from './constants.js';
+import { ENEMY_TYPES, KILL_TEXTS, CRIT_TEXTS, OVERKILL_TEXTS, DAMAGE_TEXTS, ARMORED_INTRO_SCORE, ARMORED_GUARANTEE_BAR } from './constants.js';
 import { state, dom } from './state.js';
 import { playSFX } from './audio.js';
 import { showText, showBigPrompt, spawnParticles } from './render.js';
@@ -51,11 +51,25 @@ export function resolveClash() {
     if (stance === 'stumble') {
         // Stumble always takes damage (with graze chance)
         if (roll < 0.2) {
-            // Graze!
+            // GRAZE! Lucky dodge - celebrate it!
             state.flashColor = '#ffff00';
-            state.flashAlpha = 1;
-            showText('GRAZE!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#ffff00');
+            state.flashAlpha = 0.6;
+            state.screenShake = 5;
+            state.hitStop = 3;
+            showBigPrompt('GRAZE!', '#ffff00');
             playSFX('graze');
+
+            // Sparks flying past player
+            for (let i = 0; i < 12; i++) {
+                state.particles.push({
+                    x: 70 + Math.random() * 20,
+                    y: dom.canvas.height - 50 - Math.random() * 30,
+                    vx: 4 + Math.random() * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 0.8,
+                    color: i % 2 === 0 ? '#ffff00' : '#ffffff'
+                });
+            }
         } else {
             takeDamage();
         }
@@ -155,11 +169,25 @@ export function resolveClash() {
     } else {
         // Wrong stance - DAMAGE with graze chance
         if (roll < 0.2) {
-            // Graze!
+            // GRAZE! Lucky dodge!
             state.flashColor = '#ffff00';
-            state.flashAlpha = 0.5;
-            showText('GRAZE!', dom.canvas.width/2, dom.canvas.height/2 - 30, '#ffff00');
+            state.flashAlpha = 0.6;
+            state.screenShake = 5;
+            state.hitStop = 3;
+            showBigPrompt('LUCKY!', '#ffff00');
             playSFX('graze');
+
+            // Sparks
+            for (let i = 0; i < 12; i++) {
+                state.particles.push({
+                    x: 70 + Math.random() * 20,
+                    y: dom.canvas.height - 50 - Math.random() * 30,
+                    vx: 4 + Math.random() * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 0.8,
+                    color: i % 2 === 0 ? '#ffff00' : '#ffffff'
+                });
+            }
         } else {
             takeDamage();
         }
@@ -172,13 +200,49 @@ export function takeDamage() {
     player.lives--;
     player.combo = 0;
     player.feverMode = false; // End fever mode on damage
-    state.screenShake = 10;
+
+    // JUICE: Big impact!
+    state.screenShake = 15;
+    state.hitStop = 8;
+    state.chromaOffset = 5;
     state.flashColor = '#ff0000';
-    state.flashAlpha = 0.8;
+    state.flashAlpha = 1;
     playSFX('damage');
+
+    // Show damage text
+    const damageText = DAMAGE_TEXTS[Math.floor(Math.random() * DAMAGE_TEXTS.length)];
+    showText(damageText, 60, dom.canvas.height - 80, '#ff0000');
+
+    // Blood/damage particles from player
+    for (let i = 0; i < 15; i++) {
+        state.particles.push({
+            x: 60 + (Math.random() - 0.5) * 20,
+            y: dom.canvas.height - 60,
+            vx: (Math.random() - 0.5) * 8,
+            vy: -Math.random() * 6 - 2,
+            life: 1,
+            color: i % 3 === 0 ? '#ff0000' : '#ff4444'
+        });
+    }
+
+    // Heart break particles (from UI area)
+    const heartX = 20 + player.lives * 25; // Position of lost heart
+    for (let i = 0; i < 8; i++) {
+        state.particles.push({
+            x: heartX,
+            y: 20,
+            vx: (Math.random() - 0.5) * 6,
+            vy: Math.random() * 4 + 1,
+            life: 1.2,
+            color: '#ff4444'
+        });
+    }
 
     if (player.lives <= 0) {
         state.gameState = 'gameover';
+        // Extra death effects
+        state.screenShake = 25;
+        state.hitStop = 15;
         // Save high score
         if (player.score > state.highScore) {
             state.highScore = player.score;

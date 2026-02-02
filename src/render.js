@@ -573,34 +573,71 @@ export function drawUI() {
         const pulseSize = inHitZone ? Math.sin(Date.now() / 50) * 4 : 0;
         const baseSize = 16; // Bigger markers for clarity
 
-        // Marker circle (bigger)
-        ctx.fillStyle = markerColor;
-        ctx.beginPath();
-        ctx.arc(marker.x, trackY, baseSize + pulseSize, 0, Math.PI * 2);
-        ctx.fill();
+        // PENDING STATE: First tap of double-tap registered, waiting for second
+        if (marker.pendingHit) {
+            // Success color with rapid pulse
+            const pendingPulse = Math.sin(Date.now() / 30) * 3;
+            ctx.fillStyle = '#88ffaa';
+            ctx.beginPath();
+            ctx.arc(marker.x, trackY, baseSize + pendingPulse, 0, Math.PI * 2);
+            ctx.fill();
 
-        // Marker border (thicker when in zone)
-        ctx.strokeStyle = inHitZone ? '#ffffff' : '#888888';
-        ctx.lineWidth = inHitZone ? 4 : 2;
-        ctx.stroke();
+            // Checkmark border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
 
-        // Marker symbol - BIGGER and clearer
-        ctx.fillStyle = '#000000';
-        ctx.font = `bold ${inHitZone ? 18 : 16}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        if (marker.type === 'aggressive') {
-            ctx.fillText('!', marker.x, trackY); // "!" for single tap
-        } else if (marker.type === 'defensive') {
-            // Show "1" on first marker, "2" on second
-            ctx.fillText(marker.isSecond ? '2' : '1', marker.x, trackY);
-        } else if (marker.type === 'charge') {
-            ctx.fillText('H', marker.x, trackY); // "H" for hold
+            // Checkmark symbol
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('✓', marker.x, trackY);
+            ctx.textBaseline = 'alphabetic';
+
+            // "TAP!" prompt above
+            ctx.fillStyle = '#88ffaa';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('TAP!', marker.x, trackY - baseSize - 10);
+
+            // Ring expanding outward
+            const ringProgress = ((Date.now() % 500) / 500);
+            ctx.strokeStyle = `rgba(136, 255, 170, ${1 - ringProgress})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(marker.x, trackY, baseSize + ringProgress * 20, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Normal marker rendering
+            // Marker circle (bigger)
+            ctx.fillStyle = markerColor;
+            ctx.beginPath();
+            ctx.arc(marker.x, trackY, baseSize + pulseSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Marker border (thicker when in zone)
+            ctx.strokeStyle = inHitZone ? '#ffffff' : '#888888';
+            ctx.lineWidth = inHitZone ? 4 : 2;
+            ctx.stroke();
+
+            // Marker symbol - BIGGER and clearer
+            ctx.fillStyle = '#000000';
+            ctx.font = `bold ${inHitZone ? 18 : 16}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if (marker.type === 'aggressive') {
+                ctx.fillText('!', marker.x, trackY); // "!" for single tap
+            } else if (marker.type === 'defensive') {
+                // Show "1" on first marker, "2" on second
+                ctx.fillText(marker.isSecond ? '2' : '1', marker.x, trackY);
+            } else if (marker.type === 'charge') {
+                ctx.fillText('H', marker.x, trackY); // "H" for hold
+            }
+            ctx.textBaseline = 'alphabetic';
         }
-        ctx.textBaseline = 'alphabetic';
 
-        // Action label above marker when approaching
-        if (distToHit < 100 && distToHit > 40) {
+        // Action label above marker when approaching (skip if pending - already has TAP! label)
+        if (distToHit < 100 && distToHit > 40 && !marker.pendingHit) {
             ctx.fillStyle = markerColor;
             ctx.font = 'bold 10px monospace';
             const label = marker.type === 'aggressive' ? 'TAP' :
@@ -613,7 +650,7 @@ export function drawUI() {
             // Find the second marker
             const secondMarker = beatMarkers.find(m =>
                 m.type === 'defensive' && m.isSecond && !m.hit &&
-                Math.abs(m.x - marker.x) < 50
+                Math.abs(m.x - marker.x) < 80
             );
             if (secondMarker) {
                 ctx.strokeStyle = `${markerColor}88`;

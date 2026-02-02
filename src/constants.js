@@ -6,13 +6,17 @@
 export const SCALE = 2;
 
 // Timing
-export const DOUBLE_TAP_WINDOW = 200; // ms
+export const DOUBLE_TAP_WINDOW = 400; // ms - window to register second tap (generous)
 export const BEAT_WINDOW = 300; // ms - forgiving timing
 export const HOLD_THRESHOLD = 400; // ms to trigger charge attack
 
+// Double-tap marker spacing (pixels between 1st and 2nd marker)
+// Spaced apart so you hit each one as it passes through
+export const DOUBLE_TAP_SPACING = 70;
+
 // Beat track
 export const HIT_ZONE_X = 80; // Where you should hit
-export const HIT_RANGE = 80; // Forgiving hit detection range
+export const HIT_RANGE = 110; // Very forgiving hit detection range
 export const TRACK_START_X = 420; // Where markers spawn (off-screen right)
 export const TRACK_DISTANCE = 340; // Distance markers travel (TRACK_START_X - HIT_ZONE_X)
 export const FRAMES_PER_SECOND = 60;
@@ -38,9 +42,15 @@ export const ENEMY_TYPES = {
 export const KILL_TEXTS = ['SLAIN!', 'DESTROYED!', 'VANQUISHED!', 'OBLITERATED!', 'WRECKED!'];
 export const CRIT_TEXTS = ['CRITICAL!', 'DEVASTATING!', 'BRUTAL!', 'SAVAGE!'];
 export const OVERKILL_TEXTS = ['OVERKILL!', 'ANNIHILATED!', 'DECIMATED!', 'EVISCERATED!'];
+export const MISS_TEXTS = ['TOO SLOW!', 'MISSED!', 'WHIFF!', 'NOPE!', 'TOO LATE!'];
+export const DAMAGE_TEXTS = ['OUCH!', 'OOF!', 'AGH!', 'ARGH!', 'UGH!'];
+
+// Hold marker tail (should visually match HOLD_THRESHOLD duration)
+// At 60 BPM: speed ~340px/sec, 400ms hold = ~136px tail
+export const HOLD_TAIL_LENGTH = 120;
 
 // Game balance
-export const STARTING_BPM = 52;
+export const STARTING_BPM = 55; // Slightly slower start for learning
 export const MAX_BPM = 100;
 export const BPM_INCREMENT = 3;
 export const TEMPO_UP_INTERVAL = 12; // bars between tempo increases
